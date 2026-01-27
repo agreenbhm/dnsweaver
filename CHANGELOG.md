@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **RFC 2136 Dynamic DNS Provider** (#132): Industry-standard DNS update protocol support
+  - Works with BIND, Windows DNS, PowerDNS, Knot DNS, Technitium, and any RFC 2136-compliant server
+  - TSIG authentication with HMAC-SHA256/SHA512 support
+  - Catalog-based hostname enumeration via `_dnsweaver-catalog-N.<zone>` TXT records
+  - Per-record ownership verification via `_dnsweaver.<hostname>` TXT records
+  - Supports A, AAAA, CNAME, and SRV record types
+  - No AXFR required — catalog provides efficient O(n) enumeration
+
 ## [0.7.0] - 2026-01-19
 
 ### Added
