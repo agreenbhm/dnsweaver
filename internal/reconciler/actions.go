@@ -226,7 +226,7 @@ func (r *Reconciler) ensureRecordForProvider(ctx context.Context, hostname *sour
 		// Check if we already own this record
 		hasOwnership := false
 		if cache != nil {
-			hasOwnership = cache.hasOwnershipRecord(inst.Name(), hostname.Name)
+			hasOwnership = cache.hasOwnershipRecord(inst.Name(), hostname.Name, r.config.InstanceID)
 		}
 
 		if hasOwnership {

@@ -13,6 +13,7 @@ func TestRecordCache_HasOwnershipRecord(t *testing.T) {
 		records      map[string]map[string][]provider.Record
 		providerName string
 		hostname     string
+		instanceID   string
 		want         bool
 	}{
 		{
@@ -29,7 +30,7 @@ func TestRecordCache_HasOwnershipRecord(t *testing.T) {
 			want: false,
 		},
 		{
-			name:         "ownership record exists",
+			name:         "ownership record exists - legacy format",
 			providerName: "test-provider",
 			hostname:     "app.example.com",
 			records: map[string]map[string][]provider.Record{
@@ -43,6 +44,48 @@ func TestRecordCache_HasOwnershipRecord(t *testing.T) {
 				},
 			},
 			want: true,
+		},
+		{
+			name:         "ownership record with instance ID matches",
+			providerName: "test-provider",
+			hostname:     "app.example.com",
+			instanceID:   "pi5-dns",
+			records: map[string]map[string][]provider.Record{
+				"test-provider": {
+					"_dnsweaver.app.example.com": {
+						{Hostname: "_dnsweaver.app.example.com", Type: provider.RecordTypeTXT, Target: "heritage=dnsweaver,instance=pi5-dns"},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name:         "ownership record with wrong instance ID",
+			providerName: "test-provider",
+			hostname:     "app.example.com",
+			instanceID:   "pi5-dns",
+			records: map[string]map[string][]provider.Record{
+				"test-provider": {
+					"_dnsweaver.app.example.com": {
+						{Hostname: "_dnsweaver.app.example.com", Type: provider.RecordTypeTXT, Target: "heritage=dnsweaver,instance=k8s-node"},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name:         "legacy record does not match when instance ID set",
+			providerName: "test-provider",
+			hostname:     "app.example.com",
+			instanceID:   "pi5-dns",
+			records: map[string]map[string][]provider.Record{
+				"test-provider": {
+					"_dnsweaver.app.example.com": {
+						{Hostname: "_dnsweaver.app.example.com", Type: provider.RecordTypeTXT, Target: "heritage=dnsweaver"},
+					},
+				},
+			},
+			want: false,
 		},
 		{
 			name:         "TXT record with wrong value",
@@ -97,10 +140,10 @@ func TestRecordCache_HasOwnershipRecord(t *testing.T) {
 				logger:  slog.Default(),
 			}
 
-			got := cache.hasOwnershipRecord(tt.providerName, tt.hostname)
+			got := cache.hasOwnershipRecord(tt.providerName, tt.hostname, tt.instanceID)
 			if got != tt.want {
-				t.Errorf("hasOwnershipRecord(%q, %q) = %v, want %v",
-					tt.providerName, tt.hostname, got, tt.want)
+				t.Errorf("hasOwnershipRecord(%q, %q, %q) = %v, want %v",
+					tt.providerName, tt.hostname, tt.instanceID, got, tt.want)
 			}
 		})
 	}

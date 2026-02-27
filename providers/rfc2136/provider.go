@@ -173,13 +173,13 @@ func (p *Provider) List(ctx context.Context) ([]provider.Record, error) {
 		// Check if ownership TXT exists with our marker
 		hasOwnership := false
 		for _, r := range ownershipRecords {
-			if r.Type == dns.TypeTXT && strings.Contains(r.RData, provider.OwnershipValue) {
+			if r.Type == dns.TypeTXT && provider.IsDnsweaverOwned(r.RData) {
 				hasOwnership = true
-				// Add ownership record to results
+				// Add ownership record to results with actual stored value
 				records = append(records, provider.Record{
 					Hostname:   ownershipName,
 					Type:       provider.RecordTypeTXT,
-					Target:     provider.OwnershipValue,
+					Target:     r.RData,
 					TTL:        int(r.TTL),
 					ProviderID: fmt.Sprintf("%s:TXT:%s", ownershipFQDN, r.RData),
 				})

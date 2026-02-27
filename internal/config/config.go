@@ -199,6 +199,12 @@ func (c *Config) Source() string {
 	return c.Global.Source
 }
 
+// InstanceID returns the configured instance ID for multi-instance coordination.
+// Returns empty string if not configured (single-instance mode).
+func (c *Config) InstanceID() string {
+	return c.Global.InstanceID
+}
+
 // GetProviderInstance returns the configuration for a specific provider instance.
 func (c *Config) GetProviderInstance(name string) (*ProviderInstanceConfig, bool) {
 	for _, inst := range c.ProviderInstances {

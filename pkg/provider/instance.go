@@ -69,6 +69,11 @@ type ProviderInstance struct {
 	// Mode is the operational mode for this instance.
 	// Defaults to ModeManaged if not set.
 	Mode OperationalMode
+
+	// InstanceID is the unique identifier for the dnsweaver instance.
+	// Used for multi-instance coordination to scope ownership records.
+	// Empty string means single-instance mode (legacy behavior).
+	InstanceID string
 }
 
 // Name returns the provider instance name (delegates to Provider).
@@ -284,9 +289,10 @@ func (pi *ProviderInstance) DeleteSRVRecord(ctx context.Context, hostname string
 }
 
 // CreateOwnershipRecord creates a TXT record to mark ownership of a hostname.
-// The TXT record is named "_dnsweaver.{hostname}" with value "heritage=dnsweaver".
+// The TXT record is named "_dnsweaver.{hostname}" with a value that includes
+// the instance ID when configured for multi-instance coordination.
 func (pi *ProviderInstance) CreateOwnershipRecord(ctx context.Context, hostname string) error {
-	record := OwnershipRecord(hostname, pi.TTL)
+	record := OwnershipRecord(hostname, pi.TTL, pi.InstanceID)
 
 	start := time.Now()
 	err := pi.Provider.Create(ctx, record)
@@ -309,7 +315,7 @@ func (pi *ProviderInstance) CreateOwnershipRecord(ctx context.Context, hostname 
 
 // DeleteOwnershipRecord removes the TXT ownership record for a hostname.
 func (pi *ProviderInstance) DeleteOwnershipRecord(ctx context.Context, hostname string) error {
-	record := OwnershipRecord(hostname, pi.TTL)
+	record := OwnershipRecord(hostname, pi.TTL, pi.InstanceID)
 
 	start := time.Now()
 	err := pi.Provider.Delete(ctx, record)
@@ -326,7 +332,9 @@ func (pi *ProviderInstance) DeleteOwnershipRecord(ctx context.Context, hostname 
 	return err
 }
 
-// HasOwnershipRecord checks if an ownership TXT record exists for the given hostname.
+// HasOwnershipRecord checks if an ownership TXT record exists for the given hostname
+// that matches this instance's ID. In multi-instance mode, only records with the
+// matching instance ID are considered owned by this instance.
 func (pi *ProviderInstance) HasOwnershipRecord(ctx context.Context, hostname string) (bool, error) {
 	ownershipName := OwnershipRecordName(hostname)
 
@@ -346,7 +354,7 @@ func (pi *ProviderInstance) HasOwnershipRecord(ctx context.Context, hostname str
 	metrics.ProviderAPIDuration.WithLabelValues(pi.Name(), "list").Observe(duration)
 
 	for _, r := range records {
-		if r.Hostname == ownershipName && r.Type == RecordTypeTXT && r.Target == OwnershipValue {
+		if r.Hostname == ownershipName && r.Type == RecordTypeTXT && MatchesOwnership(r.Target, pi.InstanceID) {
 			return true, nil
 		}
 	}
@@ -355,8 +363,9 @@ func (pi *ProviderInstance) HasOwnershipRecord(ctx context.Context, hostname str
 }
 
 // RecoverOwnedHostnames scans the provider for ownership TXT records and returns
-// the list of hostnames that dnsweaver previously created. This is used on startup
-// to recover state and enable orphan cleanup for records created before a restart.
+// the list of hostnames that this dnsweaver instance previously created. In
+// multi-instance mode, only records matching this instance's ID are recovered.
+// This is used on startup to recover state and enable orphan cleanup.
 func (pi *ProviderInstance) RecoverOwnedHostnames(ctx context.Context) ([]string, error) {
 	start := time.Now()
 	records, err := pi.Provider.List(ctx)
@@ -375,8 +384,8 @@ func (pi *ProviderInstance) RecoverOwnedHostnames(ctx context.Context) ([]string
 
 	var hostnames []string
 	for _, r := range records {
-		// Look for ownership TXT records with the correct value
-		if r.Type == RecordTypeTXT && r.Target == OwnershipValue && IsOwnershipRecord(r.Hostname) {
+		// Look for ownership TXT records that match our instance
+		if r.Type == RecordTypeTXT && IsOwnershipRecord(r.Hostname) && MatchesOwnership(r.Target, pi.InstanceID) {
 			hostname := ExtractHostnameFromOwnership(r.Hostname)
 			if hostname != "" {
 				hostnames = append(hostnames, hostname)

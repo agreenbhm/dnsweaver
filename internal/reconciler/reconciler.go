@@ -45,6 +45,11 @@ type Config struct {
 	// Enabled controls whether reconciliation is active.
 	// When false, Reconcile() returns immediately without doing anything.
 	Enabled bool
+
+	// InstanceID is the unique identifier for this dnsweaver instance.
+	// Used for multi-instance coordination to scope ownership records.
+	// Empty string means single-instance mode (legacy behavior).
+	InstanceID string
 }
 
 // DefaultConfig returns a Config with sensible defaults.

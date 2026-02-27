@@ -22,6 +22,7 @@ func clearGlobalEnv(t *testing.T) {
 		"DNSWEAVER_DOCKER_HOST",
 		"DNSWEAVER_DOCKER_MODE",
 		"DNSWEAVER_SOURCE",
+		"DNSWEAVER_INSTANCE_ID",
 	}
 	for _, v := range envVars {
 		os.Unsetenv(v)
@@ -73,6 +74,9 @@ func TestLoadGlobalConfig_Defaults(t *testing.T) {
 	}
 	if cfg.Source != DefaultSource {
 		t.Errorf("Source = %q, want %q", cfg.Source, DefaultSource)
+	}
+	if cfg.InstanceID != DefaultInstanceID {
+		t.Errorf("InstanceID = %q, want %q", cfg.InstanceID, DefaultInstanceID)
 	}
 }
 
@@ -273,6 +277,114 @@ func TestLoadGlobalConfig_AdoptExisting(t *testing.T) {
 
 			if cfg.AdoptExisting != tt.want {
 				t.Errorf("AdoptExisting = %v, want %v", cfg.AdoptExisting, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadGlobalConfig_InstanceID(t *testing.T) {
+	clearGlobalEnv(t)
+
+	t.Run("valid instance ID", func(t *testing.T) {
+		os.Setenv("DNSWEAVER_INSTANCE_ID", "pi5-dns")
+		defer os.Unsetenv("DNSWEAVER_INSTANCE_ID")
+
+		cfg, errs := loadGlobalConfig()
+		if len(errs) > 0 {
+			t.Errorf("unexpected errors: %v", errs)
+		}
+		if cfg.InstanceID != "pi5-dns" {
+			t.Errorf("InstanceID = %q, want %q", cfg.InstanceID, "pi5-dns")
+		}
+	})
+
+	t.Run("empty instance ID is allowed", func(t *testing.T) {
+		os.Setenv("DNSWEAVER_INSTANCE_ID", "")
+		defer os.Unsetenv("DNSWEAVER_INSTANCE_ID")
+
+		cfg, errs := loadGlobalConfig()
+		if len(errs) > 0 {
+			t.Errorf("unexpected errors: %v", errs)
+		}
+		if cfg.InstanceID != "" {
+			t.Errorf("InstanceID = %q, want empty", cfg.InstanceID)
+		}
+	})
+
+	t.Run("instance ID with dots dashes underscores", func(t *testing.T) {
+		os.Setenv("DNSWEAVER_INSTANCE_ID", "k8s-node_01.prod")
+		defer os.Unsetenv("DNSWEAVER_INSTANCE_ID")
+
+		cfg, errs := loadGlobalConfig()
+		if len(errs) > 0 {
+			t.Errorf("unexpected errors: %v", errs)
+		}
+		if cfg.InstanceID != "k8s-node_01.prod" {
+			t.Errorf("InstanceID = %q, want %q", cfg.InstanceID, "k8s-node_01.prod")
+		}
+	})
+
+	t.Run("instance ID too long", func(t *testing.T) {
+		os.Setenv("DNSWEAVER_INSTANCE_ID", "a123456789012345678901234567890123456789012345678901234567890TOOLONG")
+		defer os.Unsetenv("DNSWEAVER_INSTANCE_ID")
+
+		_, errs := loadGlobalConfig()
+		if len(errs) == 0 {
+			t.Error("expected error for instance ID exceeding max length")
+		}
+	})
+
+	t.Run("instance ID with invalid characters", func(t *testing.T) {
+		os.Setenv("DNSWEAVER_INSTANCE_ID", "invalid id!")
+		defer os.Unsetenv("DNSWEAVER_INSTANCE_ID")
+
+		_, errs := loadGlobalConfig()
+		if len(errs) == 0 {
+			t.Error("expected error for instance ID with invalid characters")
+		}
+	})
+
+	t.Run("instance ID starting with dash", func(t *testing.T) {
+		os.Setenv("DNSWEAVER_INSTANCE_ID", "-invalid")
+		defer os.Unsetenv("DNSWEAVER_INSTANCE_ID")
+
+		_, errs := loadGlobalConfig()
+		if len(errs) == 0 {
+			t.Error("expected error for instance ID starting with dash")
+		}
+	})
+}
+
+func TestValidateInstanceID(t *testing.T) {
+	tests := []struct {
+		name    string
+		id      string
+		wantErr bool
+	}{
+		{name: "empty is valid", id: "", wantErr: false},
+		{name: "simple alphanumeric", id: "pi5dns", wantErr: false},
+		{name: "with dashes", id: "pi5-dns", wantErr: false},
+		{name: "with underscores", id: "pi5_dns", wantErr: false},
+		{name: "with dots", id: "pi5.dns", wantErr: false},
+		{name: "complex valid", id: "k8s-node_01.prod", wantErr: false},
+		{name: "single char", id: "a", wantErr: false},
+		{name: "max length 63", id: "a23456789012345678901234567890123456789012345678901234567890123", wantErr: false},
+		{name: "64 chars too long", id: "a234567890123456789012345678901234567890123456789012345678901234", wantErr: true},
+		{name: "starts with dash", id: "-invalid", wantErr: true},
+		{name: "starts with dot", id: ".invalid", wantErr: true},
+		{name: "starts with underscore", id: "_invalid", wantErr: true},
+		{name: "contains space", id: "invalid id", wantErr: true},
+		{name: "contains exclamation", id: "invalid!", wantErr: true},
+		{name: "contains slash", id: "path/id", wantErr: true},
+		{name: "contains comma", id: "a,b", wantErr: true},
+		{name: "contains equals", id: "a=b", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateInstanceID(tt.id)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateInstanceID(%q) error = %v, wantErr %v", tt.id, err, tt.wantErr)
 			}
 		})
 	}

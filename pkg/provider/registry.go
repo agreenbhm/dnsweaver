@@ -47,11 +47,12 @@ type Factory func(cfg FactoryConfig) (Provider, error)
 
 // Registry manages provider type factories and active provider instances.
 type Registry struct {
-	mu        sync.RWMutex
-	factories map[string]Factory           // type name -> factory function
-	instances []*ProviderInstance          // instances in priority order
-	byName    map[string]*ProviderInstance // instance name -> instance
-	logger    *slog.Logger
+	mu         sync.RWMutex
+	factories  map[string]Factory           // type name -> factory function
+	instances  []*ProviderInstance          // instances in priority order
+	byName     map[string]*ProviderInstance // instance name -> instance
+	instanceID string                       // dnsweaver instance ID for multi-instance mode
+	logger     *slog.Logger
 }
 
 // NewRegistry creates a new provider registry.
@@ -65,6 +66,14 @@ func NewRegistry(logger *slog.Logger) *Registry {
 		byName:    make(map[string]*ProviderInstance),
 		logger:    logger,
 	}
+}
+
+// SetInstanceID sets the dnsweaver instance ID for multi-instance coordination.
+// This must be called before creating any provider instances.
+func (r *Registry) SetInstanceID(id string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.instanceID = id
 }
 
 // RegisterFactory registers a provider factory for a given type.
@@ -131,6 +140,7 @@ func (r *Registry) CreateInstance(cfg ProviderInstanceConfig) error {
 		Target:     cfg.Target,
 		TTL:        cfg.TTL,
 		Mode:       cfg.Mode,
+		InstanceID: r.instanceID,
 	}
 
 	// Default to managed mode if not set

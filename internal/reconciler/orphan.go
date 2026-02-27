@@ -232,7 +232,7 @@ func (r *Reconciler) deleteManagedForProvider(ctx context.Context, hostname stri
 	// Check if we own this record (using cache if available)
 	var hasOwnership bool
 	if cache != nil {
-		hasOwnership = cache.hasOwnershipRecord(inst.Name(), hostname)
+		hasOwnership = cache.hasOwnershipRecord(inst.Name(), hostname, r.config.InstanceID)
 	} else {
 		var err error
 		hasOwnership, err = inst.HasOwnershipRecord(ctx, hostname)
@@ -669,7 +669,7 @@ func (r *Reconciler) deleteWithOwnership(ctx context.Context, hostname string, c
 		// Check if we own this record (using cache if available)
 		var hasOwnership bool
 		if cache != nil {
-			hasOwnership = cache.hasOwnershipRecord(inst.Name(), hostname)
+			hasOwnership = cache.hasOwnershipRecord(inst.Name(), hostname, r.config.InstanceID)
 		} else {
 			var err error
 			hasOwnership, err = inst.HasOwnershipRecord(ctx, hostname)

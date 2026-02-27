@@ -85,6 +85,7 @@ func run() error {
 		slog.String("go_version", runtime.Version()),
 		slog.Bool("dry_run", cfg.DryRun()),
 		slog.Bool("adopt_existing", cfg.AdoptExisting()),
+		slog.String("instance_id", cfg.InstanceID()),
 	)
 
 	// Create context with cancellation for graceful shutdown
@@ -118,6 +119,14 @@ func run() error {
 	// are retried in the background instead of causing a fatal error.
 	providerRegistry := provider.NewRegistry(logger)
 	registerProviderFactories(providerRegistry)
+
+	// Set instance ID for multi-instance coordination (#84)
+	if cfg.InstanceID() != "" {
+		providerRegistry.SetInstanceID(cfg.InstanceID())
+		logger.Info("multi-instance mode enabled",
+			slog.String("instance_id", cfg.InstanceID()),
+		)
+	}
 
 	providerManager := provider.NewManager(providerRegistry,
 		provider.WithManagerLogger(logger),
@@ -155,6 +164,7 @@ func run() error {
 		AdoptExisting:     cfg.AdoptExisting(),
 		ReconcileInterval: cfg.ReconcileInterval(),
 		Enabled:           true,
+		InstanceID:        cfg.InstanceID(),
 	}
 	rec := reconciler.New(dockerClient, sourceRegistry, providerRegistry,
 		reconciler.WithConfig(reconcilerCfg),

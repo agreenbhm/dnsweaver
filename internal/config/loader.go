@@ -2,6 +2,7 @@
 package config
 
 import (
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -259,6 +260,15 @@ func mergeGlobalConfig(base *GlobalConfig) (*GlobalConfig, []string) {
 
 	if v := getEnv("DNSWEAVER_SOURCE"); v != "" {
 		cfg.Source = v
+	}
+
+	// Override instance ID if set in env
+	if v := getEnv("DNSWEAVER_INSTANCE_ID"); v != "" {
+		if err := validateInstanceID(v); err != nil {
+			errs = append(errs, fmt.Sprintf("DNSWEAVER_INSTANCE_ID: %s", err.Error()))
+		} else {
+			cfg.InstanceID = v
+		}
 	}
 
 	return &cfg, errs

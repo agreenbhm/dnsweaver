@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -22,6 +23,12 @@ const (
 	DefaultDockerHost        = "unix:///var/run/docker.sock"
 	DefaultDockerMode        = "auto"
 	DefaultSource            = "traefik"
+	DefaultInstanceID        = ""
+)
+
+// InstanceID validation constraints.
+const (
+	MaxInstanceIDLength = 63 // DNS label safe
 )
 
 // GlobalConfig holds application-wide settings.
@@ -47,6 +54,9 @@ type GlobalConfig struct {
 
 	// Source
 	Source string // traefik, labels, or custom source name
+
+	// Multi-instance coordination
+	InstanceID string // Unique identifier for this dnsweaver instance (for shared zone management)
 }
 
 // loadGlobalConfig loads global configuration from environment variables.
@@ -183,5 +193,33 @@ func loadGlobalConfig() (*GlobalConfig, []string) {
 		cfg.HealthPort = DefaultHealthPort
 	}
 
+	// Parse INSTANCE_ID
+	if instanceID := getEnv("DNSWEAVER_INSTANCE_ID"); instanceID != "" {
+		if err := validateInstanceID(instanceID); err != nil {
+			errs = append(errs, fmt.Sprintf("DNSWEAVER_INSTANCE_ID: %s", err.Error()))
+		} else {
+			cfg.InstanceID = instanceID
+		}
+	}
+
 	return cfg, errs
+}
+
+// instanceIDPattern matches valid instance IDs: alphanumeric, hyphens, underscores, dots.
+var instanceIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
+
+// validateInstanceID checks that an instance ID is valid.
+// Valid IDs are 1-63 characters, alphanumeric with hyphens, underscores, and dots.
+// Must start with an alphanumeric character.
+func validateInstanceID(id string) error {
+	if id == "" {
+		return nil // Empty means single-instance mode (legacy)
+	}
+	if len(id) > MaxInstanceIDLength {
+		return fmt.Errorf("must be at most %d characters, got %d", MaxInstanceIDLength, len(id))
+	}
+	if !instanceIDPattern.MatchString(id) {
+		return fmt.Errorf("invalid format %q (must be alphanumeric, hyphens, underscores, dots; must start with alphanumeric)", id)
+	}
+	return nil
 }
