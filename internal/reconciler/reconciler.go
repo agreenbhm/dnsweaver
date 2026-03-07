@@ -79,11 +79,17 @@ type Reconciler struct {
 	config    Config
 	logger    *slog.Logger
 
-	// mu protects knownHostnames during concurrent access
+	// mu protects knownHostnames and recoveredMetadata during concurrent access
 	mu sync.RWMutex
 	// knownHostnames tracks hostnames discovered in the last reconciliation.
 	// Used for orphan detection.
 	knownHostnames map[string]struct{}
+
+	// recoveredMetadata stores per-hostname metadata recovered from ownership
+	// TXT records on startup. This is populated by RecoverOwnership and consumed
+	// by the first reconciliation cycle. After the first cycle completes, this
+	// map is cleared — sources become the authoritative metadata source.
+	recoveredMetadata map[string]map[string]string
 }
 
 // Option is a functional option for configuring the Reconciler.
@@ -416,6 +422,44 @@ func (r *Reconciler) KnownHostnames() []string {
 	return hostnames
 }
 
+// RecoveredMetadata returns a copy of the recovered metadata map.
+// This is primarily useful for debugging and testing.
+func (r *Reconciler) RecoveredMetadata() map[string]map[string]string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if r.recoveredMetadata == nil {
+		return nil
+	}
+
+	// Return a shallow copy to prevent mutation
+	result := make(map[string]map[string]string, len(r.recoveredMetadata))
+	for k, v := range r.recoveredMetadata {
+		result[k] = v
+	}
+	return result
+}
+
+// getRecoveredMetadata returns recovered metadata for a hostname and clears
+// it from the map. This implements "use once" semantics — after the first
+// reconciliation consumes the recovered metadata, it's gone.
+func (r *Reconciler) getRecoveredMetadata(hostname string) map[string]string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.recoveredMetadata == nil {
+		return nil
+	}
+
+	normalized := source.NormalizeHostname(hostname)
+	meta, ok := r.recoveredMetadata[normalized]
+	if !ok {
+		return nil
+	}
+	delete(r.recoveredMetadata, normalized)
+	return meta
+}
+
 // RecoverOwnership scans all providers for ownership TXT records and populates
 // the knownHostnames map. This should be called once on startup before the first
 // reconciliation to enable orphan cleanup for records created before a restart.
@@ -433,8 +477,10 @@ func (r *Reconciler) RecoverOwnership(ctx context.Context) error {
 	r.logger.Info("recovering ownership state from DNS providers")
 
 	totalRecovered := 0
+	recoveredMeta := make(map[string]map[string]string)
+
 	for _, inst := range r.providers.All() {
-		hostnames, err := inst.RecoverOwnedHostnames(ctx)
+		recovered, err := inst.RecoverOwnedHostnames(ctx)
 		if err != nil {
 			r.logger.Warn("failed to recover ownership from provider",
 				slog.String("provider", inst.Name()),
@@ -443,25 +489,35 @@ func (r *Reconciler) RecoverOwnership(ctx context.Context) error {
 			continue
 		}
 
-		if len(hostnames) > 0 {
+		if len(recovered) > 0 {
 			r.mu.Lock()
-			for _, hostname := range hostnames {
+			for _, rh := range recovered {
 				// Normalize hostname for case-insensitive comparison (RFC 1035)
-				normalized := source.NormalizeHostname(hostname)
+				normalized := source.NormalizeHostname(rh.Hostname)
 				r.knownHostnames[normalized] = struct{}{}
+				// Store recovered metadata if present
+				if len(rh.Metadata) > 0 {
+					recoveredMeta[normalized] = rh.Metadata
+				}
 			}
 			r.mu.Unlock()
 
 			r.logger.Info("recovered ownership records",
 				slog.String("provider", inst.Name()),
-				slog.Int("count", len(hostnames)),
+				slog.Int("count", len(recovered)),
 			)
-			totalRecovered += len(hostnames)
+			totalRecovered += len(recovered)
 		}
 	}
 
+	// Store recovered metadata for use in first reconciliation cycle
+	r.mu.Lock()
+	r.recoveredMetadata = recoveredMeta
+	r.mu.Unlock()
+
 	r.logger.Info("ownership recovery complete",
 		slog.Int("total_hostnames", totalRecovered),
+		slog.Int("hostnames_with_metadata", len(recoveredMeta)),
 	)
 
 	return nil

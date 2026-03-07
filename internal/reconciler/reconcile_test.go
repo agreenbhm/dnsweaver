@@ -863,6 +863,205 @@ func TestRecoverOwnership_MultipleProviders(t *testing.T) {
 	}
 }
 
+func TestRecoverOwnership_LegacyFormatNoMetadata(t *testing.T) {
+	// Old-format TXT records (no metadata) should recover with nil metadata
+	dockerMock := newTestMockWorkloadLister(workload.PlatformDocker)
+	logger := quietLogger()
+	sources := source.NewRegistry(logger)
+
+	mockProvider := newTestMockProvider("test-dns")
+	mockProvider.AddRecord(provider.Record{
+		Hostname: "_dnsweaver.legacy.example.com",
+		Type:     provider.RecordTypeTXT,
+		Target:   "heritage=dnsweaver",
+		TTL:      300,
+	})
+
+	providers := provider.NewRegistry(logger)
+	providers.RegisterFactory("mock", func(cfg provider.FactoryConfig) (provider.Provider, error) {
+		return mockProvider, nil
+	})
+	_ = providers.CreateInstance(provider.ProviderInstanceConfig{
+		Name:       "test-dns",
+		TypeName:   "mock",
+		RecordType: provider.RecordTypeA,
+		Target:     "10.0.0.1",
+		TTL:        300,
+		Domains:    []string{"*.example.com"},
+	})
+
+	cfg := DefaultConfig()
+	cfg.CleanupOrphans = true
+	cfg.OwnershipTracking = true
+
+	r := New([]workload.Lister{dockerMock}, sources, providers,
+		WithConfig(cfg),
+		WithLogger(logger),
+	)
+
+	err := r.RecoverOwnership(context.Background())
+	if err != nil {
+		t.Fatalf("RecoverOwnership returned error: %v", err)
+	}
+
+	// Hostname should be recovered
+	known := r.KnownHostnames()
+	if len(known) != 1 {
+		t.Fatalf("expected 1 recovered hostname, got %d", len(known))
+	}
+	if known[0] != "legacy.example.com" {
+		t.Errorf("expected legacy.example.com, got %q", known[0])
+	}
+
+	// No metadata should be recovered for legacy format
+	meta := r.RecoveredMetadata()
+	if len(meta) > 0 {
+		t.Errorf("expected no recovered metadata for legacy format, got %v", meta)
+	}
+}
+
+func TestRecoverOwnership_WithMetadata(t *testing.T) {
+	// Metadata-enriched TXT records should recover correct metadata
+	dockerMock := newTestMockWorkloadLister(workload.PlatformDocker)
+	logger := quietLogger()
+	sources := source.NewRegistry(logger)
+
+	mockProvider := newTestMockProvider("test-dns")
+	mockProvider.AddRecord(provider.Record{
+		Hostname: "_dnsweaver.app.example.com",
+		Type:     provider.RecordTypeTXT,
+		Target:   "heritage=dnsweaver,instance=test1,proxied=true,custom=value",
+		TTL:      300,
+	})
+	mockProvider.AddRecord(provider.Record{
+		Hostname: "_dnsweaver.api.example.com",
+		Type:     provider.RecordTypeTXT,
+		Target:   "heritage=dnsweaver,instance=test1",
+		TTL:      300,
+	})
+
+	providers := provider.NewRegistry(logger)
+	providers.SetInstanceID("test1")
+	providers.RegisterFactory("mock", func(cfg provider.FactoryConfig) (provider.Provider, error) {
+		return mockProvider, nil
+	})
+	_ = providers.CreateInstance(provider.ProviderInstanceConfig{
+		Name:       "test-dns",
+		TypeName:   "mock",
+		RecordType: provider.RecordTypeA,
+		Target:     "10.0.0.1",
+		TTL:        300,
+		Domains:    []string{"*.example.com"},
+	})
+
+	cfg := DefaultConfig()
+	cfg.CleanupOrphans = true
+	cfg.OwnershipTracking = true
+	cfg.InstanceID = "test1"
+
+	r := New([]workload.Lister{dockerMock}, sources, providers,
+		WithConfig(cfg),
+		WithLogger(logger),
+	)
+
+	err := r.RecoverOwnership(context.Background())
+	if err != nil {
+		t.Fatalf("RecoverOwnership returned error: %v", err)
+	}
+
+	// Both hostnames recovered
+	known := r.KnownHostnames()
+	if len(known) != 2 {
+		t.Fatalf("expected 2 recovered hostnames, got %d", len(known))
+	}
+
+	// Check metadata
+	meta := r.RecoveredMetadata()
+	if meta == nil {
+		t.Fatal("expected recovered metadata, got nil")
+	}
+
+	// app.example.com should have proxied and custom metadata
+	appMeta, ok := meta["app.example.com"]
+	if !ok {
+		t.Fatal("expected metadata for app.example.com")
+	}
+	if appMeta["proxied"] != "true" {
+		t.Errorf("expected proxied=true, got %q", appMeta["proxied"])
+	}
+	if appMeta["custom"] != "value" {
+		t.Errorf("expected custom=value, got %q", appMeta["custom"])
+	}
+
+	// api.example.com should have no metadata (only heritage + instance)
+	if _, ok := meta["api.example.com"]; ok {
+		t.Error("expected no metadata for api.example.com (only reserved keys)")
+	}
+}
+
+func TestRecoverOwnership_MetadataConsumedOnce(t *testing.T) {
+	// Recovered metadata should be consumed (deleted) after getRecoveredMetadata
+	dockerMock := newTestMockWorkloadLister(workload.PlatformDocker)
+	logger := quietLogger()
+	sources := source.NewRegistry(logger)
+
+	mockProvider := newTestMockProvider("test-dns")
+	mockProvider.AddRecord(provider.Record{
+		Hostname: "_dnsweaver.app.example.com",
+		Type:     provider.RecordTypeTXT,
+		Target:   "heritage=dnsweaver,proxied=true",
+		TTL:      300,
+	})
+
+	providers := provider.NewRegistry(logger)
+	providers.RegisterFactory("mock", func(cfg provider.FactoryConfig) (provider.Provider, error) {
+		return mockProvider, nil
+	})
+	_ = providers.CreateInstance(provider.ProviderInstanceConfig{
+		Name:       "test-dns",
+		TypeName:   "mock",
+		RecordType: provider.RecordTypeA,
+		Target:     "10.0.0.1",
+		TTL:        300,
+		Domains:    []string{"*.example.com"},
+	})
+
+	cfg := DefaultConfig()
+	cfg.CleanupOrphans = true
+	cfg.OwnershipTracking = true
+
+	r := New([]workload.Lister{dockerMock}, sources, providers,
+		WithConfig(cfg),
+		WithLogger(logger),
+	)
+
+	err := r.RecoverOwnership(context.Background())
+	if err != nil {
+		t.Fatalf("RecoverOwnership returned error: %v", err)
+	}
+
+	// First call should return metadata
+	meta := r.getRecoveredMetadata("app.example.com")
+	if meta == nil {
+		t.Fatal("expected recovered metadata on first call")
+	}
+	if meta["proxied"] != "true" {
+		t.Errorf("expected proxied=true, got %q", meta["proxied"])
+	}
+
+	// Second call should return nil (consumed)
+	meta2 := r.getRecoveredMetadata("app.example.com")
+	if meta2 != nil {
+		t.Errorf("expected nil on second call (consumed), got %v", meta2)
+	}
+
+	// RecoveredMetadata() should now be empty
+	remaining := r.RecoveredMetadata()
+	if len(remaining) != 0 {
+		t.Errorf("expected empty recovered metadata after consumption, got %v", remaining)
+	}
+}
+
 // =============================================================================
 // Edge Case Tests — Potential Bug Detection
 // =============================================================================

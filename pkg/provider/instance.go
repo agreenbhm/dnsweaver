@@ -364,11 +364,22 @@ func (pi *ProviderInstance) HasOwnershipRecord(ctx context.Context, hostname str
 	return false, nil
 }
 
+// RecoveredHostname represents a hostname recovered from ownership TXT records,
+// along with any metadata that was persisted in the ownership value.
+type RecoveredHostname struct {
+	// Hostname is the DNS hostname extracted from the ownership record name.
+	Hostname string
+
+	// Metadata contains key-value pairs recovered from the ownership TXT value.
+	// For old-format records (no metadata), this will be nil.
+	Metadata map[string]string
+}
+
 // RecoverOwnedHostnames scans the provider for ownership TXT records and returns
-// the list of hostnames that this dnsweaver instance previously created. In
-// multi-instance mode, only records matching this instance's ID are recovered.
-// This is used on startup to recover state and enable orphan cleanup.
-func (pi *ProviderInstance) RecoverOwnedHostnames(ctx context.Context) ([]string, error) {
+// the list of hostnames (with metadata) that this dnsweaver instance previously
+// created. In multi-instance mode, only records matching this instance's ID are
+// recovered. This is used on startup to recover state and enable orphan cleanup.
+func (pi *ProviderInstance) RecoverOwnedHostnames(ctx context.Context) ([]RecoveredHostname, error) {
 	start := time.Now()
 	records, err := pi.Provider.List(ctx)
 	duration := time.Since(start).Seconds()
@@ -384,13 +395,24 @@ func (pi *ProviderInstance) RecoverOwnedHostnames(ctx context.Context) ([]string
 	metrics.ProviderAPIRequestsTotal.WithLabelValues(pi.Name(), "list", status).Inc()
 	metrics.ProviderAPIDuration.WithLabelValues(pi.Name(), "list").Observe(duration)
 
-	var hostnames []string
+	var hostnames []RecoveredHostname
 	for _, r := range records {
 		// Look for ownership TXT records that match our instance
-		if r.Type == RecordTypeTXT && IsOwnershipRecord(r.Hostname) && MatchesOwnership(r.Target, pi.InstanceID) {
+		if r.Type == RecordTypeTXT && IsOwnershipRecord(r.Hostname) {
+			isOwned, _, metadata := ParseOwnershipValue(r.Target)
+			if !isOwned {
+				continue
+			}
+			// In multi-instance mode, verify instance ID matches
+			if !MatchesOwnership(r.Target, pi.InstanceID) {
+				continue
+			}
 			hostname := ExtractHostnameFromOwnership(r.Hostname)
 			if hostname != "" {
-				hostnames = append(hostnames, hostname)
+				hostnames = append(hostnames, RecoveredHostname{
+					Hostname: hostname,
+					Metadata: metadata,
+				})
 			}
 		}
 	}

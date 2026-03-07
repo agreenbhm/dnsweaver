@@ -105,6 +105,19 @@ func (r *Reconciler) ensureRecordForProvider(ctx context.Context, hostname *sour
 		}
 	}
 
+	// If source didn't provide metadata, check for recovered metadata from
+	// ownership TXT records (populated on startup by RecoverOwnership).
+	// This bridges the gap between restart and the source re-asserting metadata.
+	if len(metadata) == 0 {
+		if recovered := r.getRecoveredMetadata(hostname.Name); len(recovered) > 0 {
+			metadata = recovered
+			r.logger.Debug("using recovered metadata from ownership record",
+				slog.String("hostname", hostname.Name),
+				slog.Int("metadata_keys", len(recovered)),
+			)
+		}
+	}
+
 	action := Action{
 		Type:       ActionCreate,
 		Provider:   inst.Name(),
