@@ -102,6 +102,7 @@ func (d *DNSWeaver) Extract(ctx context.Context, w workload.Workload) ([]source.
 				Target:   e.Target,
 				TTL:      e.TTL,
 				Provider: e.Provider,
+				Metadata: e.Metadata,
 			}
 			if e.SRV != nil {
 				h.RecordHints.SRV = &source.SRVHints{

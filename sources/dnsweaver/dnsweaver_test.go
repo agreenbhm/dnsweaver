@@ -249,3 +249,63 @@ func TestDNSWeaver_Extract_MultipleRecords(t *testing.T) {
 		}
 	}
 }
+
+func TestDNSWeaver_Extract_MetadataFlowsToRecordHints(t *testing.T) {
+	d := New(WithLogger(testLogger()))
+
+	labels := map[string]string{
+		"dnsweaver.records.myapp.hostname":    "app.example.com",
+		"dnsweaver.records.myapp.proxied":     "false",
+		"dnsweaver.records.myapp.meta.custom": "value",
+	}
+
+	hostnames, err := d.Extract(context.Background(), labels)
+	if err != nil {
+		t.Fatalf("Extract() error = %v", err)
+	}
+	if len(hostnames) != 1 {
+		t.Fatalf("Extract() returned %d hostnames, want 1", len(hostnames))
+	}
+
+	h := hostnames[0]
+	if h.RecordHints == nil {
+		t.Fatal("RecordHints is nil, want non-nil (metadata present)")
+	}
+	if h.RecordHints.Metadata == nil {
+		t.Fatal("RecordHints.Metadata is nil, want non-nil")
+	}
+	if h.RecordHints.Metadata["proxied"] != "false" {
+		t.Errorf("Metadata[\"proxied\"] = %q, want %q", h.RecordHints.Metadata["proxied"], "false")
+	}
+	if h.RecordHints.Metadata["custom"] != "value" {
+		t.Errorf("Metadata[\"custom\"] = %q, want %q", h.RecordHints.Metadata["custom"], "value")
+	}
+}
+
+func TestDNSWeaver_Extract_SimpleHostnameProxied(t *testing.T) {
+	d := New(WithLogger(testLogger()))
+
+	labels := map[string]string{
+		"dnsweaver.hostname": "app.example.com",
+		"dnsweaver.proxied":  "false",
+	}
+
+	hostnames, err := d.Extract(context.Background(), labels)
+	if err != nil {
+		t.Fatalf("Extract() error = %v", err)
+	}
+	if len(hostnames) != 1 {
+		t.Fatalf("Extract() returned %d hostnames, want 1", len(hostnames))
+	}
+
+	h := hostnames[0]
+	if h.RecordHints == nil {
+		t.Fatal("RecordHints is nil, want non-nil (proxied metadata)")
+	}
+	if h.RecordHints.Metadata == nil {
+		t.Fatal("RecordHints.Metadata is nil")
+	}
+	if h.RecordHints.Metadata["proxied"] != "false" {
+		t.Errorf("Metadata[\"proxied\"] = %q, want %q", h.RecordHints.Metadata["proxied"], "false")
+	}
+}
