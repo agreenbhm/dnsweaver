@@ -79,6 +79,7 @@ func (r *Reconciler) ensureRecordForProvider(ctx context.Context, hostname *sour
 	target := inst.Target
 	ttl := inst.TTL
 	var srvData *provider.SRVData
+	var metadata map[string]string
 
 	if hints := hostname.RecordHints; hints != nil {
 		if hints.Type != "" {
@@ -97,6 +98,10 @@ func (r *Reconciler) ensureRecordForProvider(ctx context.Context, hostname *sour
 				Weight:   hints.SRV.Weight,
 				Port:     hints.SRV.Port,
 			}
+		}
+		// Pass through metadata from source hints to provider
+		if len(hints.Metadata) > 0 {
+			metadata = hints.Metadata
 		}
 	}
 
@@ -301,7 +306,7 @@ func (r *Reconciler) ensureRecordForProvider(ctx context.Context, hostname *sour
 
 	// Step 6: Create the record (no existing records)
 	// Use CreateRecordWithValues to respect RecordHints overrides
-	if err := inst.CreateRecordWithValues(ctx, hostname.Name, recordType, target, ttl, srvData); err != nil {
+	if err := inst.CreateRecordWithValues(ctx, hostname.Name, recordType, target, ttl, srvData, metadata); err != nil {
 		// Handle conflict error (shouldn't happen after our checks, but be safe)
 		if provider.IsConflict(err) {
 			action.Type = ActionSkip

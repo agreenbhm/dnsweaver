@@ -235,6 +235,24 @@ func TestRecordEquals(t *testing.T) {
 			},
 			expected: true,
 		},
+		{
+			name: "metadata should not affect equality",
+			a: Record{
+				Hostname: "app.example.com",
+				Type:     RecordTypeA,
+				Target:   "10.0.0.1",
+				TTL:      300,
+				Metadata: map[string]string{"proxied": "true"},
+			},
+			b: Record{
+				Hostname: "app.example.com",
+				Type:     RecordTypeA,
+				Target:   "10.0.0.1",
+				TTL:      300,
+				Metadata: nil,
+			},
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {

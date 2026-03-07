@@ -99,6 +99,11 @@ type Record struct {
 	TTL        int
 	ProviderID string   // Provider-specific record identifier
 	SRV        *SRVData // SRV-specific data (only set when Type is SRV)
+
+	// Metadata carries provider-specific key-value pairs through the reconciliation pipeline.
+	// Providers read actionable keys (e.g., "proxied" for Cloudflare) during Create/Update.
+	// nil means no metadata (Go zero value, non-breaking addition).
+	Metadata map[string]string
 }
 
 // Capabilities describes a provider's feature support.
