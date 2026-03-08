@@ -60,6 +60,23 @@ docker:
   host: unix:///var/run/docker.sock  # Docker socket or TCP URL
   mode: auto                          # auto, swarm, or standalone
 
+# Platform selection
+# "docker" (default) — Docker/Swarm only
+# "kubernetes" — Kubernetes only
+# "both" — Docker and Kubernetes simultaneously
+platform: docker
+
+# Kubernetes settings (only used when platform is "kubernetes" or "both")
+kubernetes:
+  # kubeconfig: ""            # Path to kubeconfig; empty = in-cluster
+  # namespaces: ""            # Comma-separated namespace filter; empty = all
+  watch_ingress: true         # networking.k8s.io/v1 Ingress resources
+  watch_ingressroute: true    # traefik.io/v1alpha1 IngressRoute CRDs
+  watch_httproute: true       # gateway.networking.k8s.io/v1 HTTPRoute CRDs
+  watch_services: false       # v1 Service resources (opt-in, can be noisy)
+  # label_selector: ""        # Label selector for filtering (e.g. "app=myapp")
+  # annotation_filter: ""     # Annotation key=value filter
+
 # Health and metrics server
 server:
   port: 8080  # Port for /health, /ready, and /metrics endpoints

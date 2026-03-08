@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: dnsweaver
+
+labels:
+  - pairs:
+      app.kubernetes.io/name: dnsweaver
+      app.kubernetes.io/part-of: dnsweaver
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - clusterrole.yaml
+  - clusterrolebinding.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml
+
+# Secret is NOT included by default — users must create it separately
+# or use a secretGenerator with their own credentials.
+#
+# Example secretGenerator (add to your overlay kustomization.yaml):
+#
+# secretGenerator:
+#   - name: dnsweaver-provider-credentials
+#     literals:
+#       - DNSWEAVER_INTERNAL_DNS_TOKEN=your-token-here

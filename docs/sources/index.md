@@ -1,12 +1,12 @@
 ---
 title: Sources
-description: How dnsweaver discovers hostnames from Docker containers
+description: How dnsweaver discovers hostnames from Docker containers and Kubernetes resources
 icon: material/source-branch
 ---
 
 # Sources
 
-dnsweaver discovers hostnames to manage from multiple **sources**. Each source type extracts hostnames differently, allowing dnsweaver to work with existing reverse proxy configurations.
+dnsweaver discovers hostnames to manage from multiple **sources**. Each source type extracts hostnames differently, allowing dnsweaver to work with existing reverse proxy configurations on Docker and Kubernetes.
 
 ## Available Sources
 
@@ -44,6 +44,14 @@ dnsweaver discovers hostnames to manage from multiple **sources**. Each source t
 
     [:octicons-arrow-right-24: Native Labels](native-labels.md)
 
+-   :material-kubernetes:{ .lg .middle } **Kubernetes**
+
+    ---
+
+    Automatic hostname extraction from Ingress, IngressRoute, HTTPRoute, and Service resources.
+
+    [:octicons-arrow-right-24: Kubernetes](kubernetes.md)
+
 </div>
 
 ## Source Priority
@@ -53,6 +61,7 @@ When multiple sources provide the same hostname, dnsweaver uses the following pr
 1. **Native labels** (explicit dnsweaver configuration)
 2. **Traefik/Caddy labels** (reverse proxy configuration)
 3. **Traefik files** (dynamic configuration)
+4. **Kubernetes** (resource spec hostnames)
 
 ## Hostname Extraction
 
@@ -65,6 +74,7 @@ Each source extracts hostnames differently:
 | Docker Swarm | Service labels | Same as Docker |
 | Traefik Files | `http.routers.*.rule` in YAML/TOML | Standard Traefik config |
 | Native | `dnsweaver.hostname` | `dnsweaver.hostname=app.example.com` |
+| Kubernetes | Resource spec fields | `.spec.rules[].host` (Ingress) |
 
 !!! info "Multiple hostnames"
-    Containers can expose multiple hostnames. All discovered hostnames are processed independently and matched against configured provider domains.
+    Containers and Kubernetes resources can expose multiple hostnames. All discovered hostnames are processed independently and matched against configured provider domains.

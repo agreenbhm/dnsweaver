@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dnsweaver-config
+data:
+  config.yaml: |
+    # DNSWeaver Kubernetes Configuration
+    #
+    # Platform must be "kubernetes" or "both" for K8s support.
+    # Provider credentials should be supplied via the Secret, not here.
+    #
+    # See: https://maxfield-allison.github.io/dnsweaver/configuration/
+
+    logging:
+      level: info
+      format: json
+
+    reconciler:
+      interval: 60s
+      dry_run: false
+      cleanup_orphans: true
+      ownership_tracking: true
+
+    # Kubernetes platform settings
+    # These can also be set via DNSWEAVER_* env vars on the Deployment.
+    platform: kubernetes
+
+    kubernetes:
+      # kubeconfig: ""        # Empty = in-cluster (recommended)
+      # namespaces: ""        # Empty = all namespaces
+      watch_ingress: true
+      watch_ingressroute: true
+      watch_httproute: true
+      watch_services: false   # Opt-in: can be noisy
+      # label_selector: ""    # e.g. "app.kubernetes.io/managed-by=helm"
+      # annotation_filter: "" # e.g. "dnsweaver.dev/enabled=true"
+
+    server:
+      port: 8080
+
+    # Sources — order matters (first match wins)
+    sources:
+      - name: dnsweaver    # Native dnsweaver.dev/* annotations
+      - name: kubernetes   # K8s hostname extraction from resource specs
+
+    # Providers — configure your DNS providers here
+    # Credentials should be injected via DNSWEAVER_*_TOKEN env vars
+    # from the dnsweaver-provider-credentials Secret.
+    providers: []
+    # Example:
+    #   - name: internal
+    #     type: technitium
+    #     domains:
+    #       - "*.internal.example.com"
+    #     record_type: A
+    #     target: 10.0.0.100
+    #     ttl: 300
+    #     config:
+    #       url: http://dns.example.com:5380
+    #       zone: internal.example.com
+    #       # token injected via DNSWEAVER_INTERNAL_TOKEN env var
