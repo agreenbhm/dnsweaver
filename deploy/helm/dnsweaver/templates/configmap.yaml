@@ -1,0 +1,52 @@
+{{- if not .Values.existingConfigMap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dnsweaver.fullname" . }}-config
+  labels:
+    {{- include "dnsweaver.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    logging:
+      level: {{ .Values.config.logging.level }}
+      format: {{ .Values.config.logging.format }}
+
+    reconciler:
+      interval: {{ .Values.config.reconciler.interval }}
+      dry_run: {{ .Values.config.reconciler.dryRun }}
+      cleanup_orphans: {{ .Values.config.reconciler.cleanupOrphans }}
+      ownership_tracking: {{ .Values.config.reconciler.ownershipTracking }}
+
+    platform: {{ .Values.config.platform }}
+
+    kubernetes:
+      {{- with .Values.config.kubernetes.kubeconfig }}
+      kubeconfig: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.config.kubernetes.namespaces }}
+      namespaces: {{ . | quote }}
+      {{- end }}
+      watch_ingress: {{ .Values.config.kubernetes.watchIngress }}
+      watch_ingressroute: {{ .Values.config.kubernetes.watchIngressRoute }}
+      watch_httproute: {{ .Values.config.kubernetes.watchHTTPRoute }}
+      watch_services: {{ .Values.config.kubernetes.watchServices }}
+      {{- with .Values.config.kubernetes.labelSelector }}
+      label_selector: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.config.kubernetes.annotationFilter }}
+      annotation_filter: {{ . | quote }}
+      {{- end }}
+
+    server:
+      port: {{ .Values.config.server.port }}
+
+    sources:
+      {{- toYaml .Values.config.sources | nindent 6 }}
+
+    providers:
+      {{- if .Values.config.providers }}
+      {{- toYaml .Values.config.providers | nindent 6 }}
+      {{- else }}
+      []
+      {{- end }}
+{{- end }}

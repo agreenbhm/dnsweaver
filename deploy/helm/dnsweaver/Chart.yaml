@@ -1,0 +1,20 @@
+apiVersion: v2
+name: dnsweaver
+description: Automatic DNS record management for Docker and Kubernetes workloads
+type: application
+version: 0.1.0
+appVersion: "0.9.0"
+home: https://github.com/maxfield-allison/dnsweaver
+sources:
+  - https://github.com/maxfield-allison/dnsweaver
+maintainers:
+  - name: maxfield-allison
+    url: https://github.com/maxfield-allison
+keywords:
+  - dns
+  - kubernetes
+  - docker
+  - external-dns
+  - traefik
+  - ingress
+icon: https://raw.githubusercontent.com/maxfield-allison/dnsweaver/main/docs/assets/logo.png

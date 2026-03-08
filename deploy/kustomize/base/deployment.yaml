@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dnsweaver
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate   # Single writer — avoids duplicate DNS updates
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dnsweaver
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dnsweaver
+    spec:
+      serviceAccountName: dnsweaver
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: dnsweaver
+          image: maxamill/dnsweaver:latest
+          args:
+            - --config
+            - /etc/dnsweaver/config.yaml
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: DNSWEAVER_PLATFORM
+              value: "kubernetes"
+            # Provider credentials injected from Secret
+            # Uncomment and adjust for your providers:
+            # - name: DNSWEAVER_INTERNAL_TOKEN
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: dnsweaver-provider-credentials
+            #       key: DNSWEAVER_INTERNAL_TOKEN
+          volumeMounts:
+            - name: config
+              mountPath: /etc/dnsweaver
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: config
+          configMap:
+            name: dnsweaver-config
