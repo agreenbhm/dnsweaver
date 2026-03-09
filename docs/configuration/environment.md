@@ -96,13 +96,16 @@ Replace `{NAME}` with your instance name. For example, instance `internal-dns` u
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DNSWEAVER_{NAME}_TYPE` | Yes | Provider type: `technitium`, `cloudflare`, `pihole`, `dnsmasq`, `webhook` |
+| `DNSWEAVER_{NAME}_TYPE` | Yes | Provider type: `technitium`, `cloudflare`, `rfc2136`, `pihole`, `dnsmasq`, `webhook` |
 | `DNSWEAVER_{NAME}_RECORD_TYPE` | No | Record type: `A`, `AAAA`, `CNAME` (default: `A`) |
 | `DNSWEAVER_{NAME}_TARGET` | Yes | Record target (IPv4, IPv6, or hostname) |
 | `DNSWEAVER_{NAME}_DOMAINS` | Yes | Glob patterns for matching hostnames |
 | `DNSWEAVER_{NAME}_DOMAINS_REGEX` | No | Regex patterns (alternative to glob) |
 | `DNSWEAVER_{NAME}_EXCLUDE_DOMAINS` | No | Glob patterns to exclude |
+| `DNSWEAVER_{NAME}_EXCLUDE_DOMAINS_REGEX` | No | Regex patterns to exclude (alternative to glob) |
 | `DNSWEAVER_{NAME}_TTL` | No | Per-instance TTL override |
+| `DNSWEAVER_{NAME}_MODE` | No | Operational mode: `managed` (default), `authoritative`, `additive` |
+| `DNSWEAVER_{NAME}_INSECURE_SKIP_VERIFY` | No | Skip TLS certificate verification (`true`/`false`, default: `false`) |
 
 ## Source Settings
 

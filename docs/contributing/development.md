@@ -4,7 +4,7 @@ This guide covers setting up your local development environment for contributing
 
 ## Prerequisites
 
-- **Go 1.24+** — [Download](https://go.dev/dl/)
+- **Go 1.25+** — [Download](https://go.dev/dl/)
 - **Docker** — For testing and running dependencies
 - **golangci-lint** — [Installation](https://golangci-lint.run/usage/install/)
 - **Make** — For running build targets
@@ -18,17 +18,26 @@ dnsweaver/
 ├── internal/
 │   ├── config/             # Configuration loading
 │   ├── docker/             # Docker client and event handling
-│   ├── reconciler/         # Core reconciliation logic
-│   └── sources/            # Hostname extraction sources
+│   ├── kubernetes/         # Kubernetes watcher and resource converters
+│   └── reconciler/         # Core reconciliation logic
 ├── pkg/
+│   ├── httputil/           # HTTP client utilities
 │   ├── provider/           # Provider interface definitions
-│   └── httputil/           # HTTP client utilities
+│   ├── source/             # Source interface definitions
+│   ├── sshutil/            # SSH/SFTP client package
+│   └── workload/           # Platform-agnostic workload abstraction
 ├── providers/              # DNS provider implementations
 │   ├── cloudflare/
 │   ├── dnsmasq/
 │   ├── pihole/
+│   ├── rfc2136/
 │   ├── technitium/
 │   └── webhook/
+├── sources/                # Hostname extraction sources
+│   ├── dnsweaver/          # Native dnsweaver label source
+│   ├── kubernetes/         # Kubernetes annotation source
+│   └── traefik/            # Traefik label/file source
+├── deploy/                 # Deployment manifests (Helm, Kustomize, raw)
 └── docs/                   # Documentation (MkDocs)
 ```
 

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-03-09
+
+### Fixed
+- **Documentation**: Comprehensive documentation review and corrections
+  - Fixed incorrect env var `TLS_SKIP_VERIFY` → `INSECURE_SKIP_VERIFY` in FAQ
+  - Added `rfc2136` to provider TYPE list in environment variable reference
+  - Added missing per-instance env vars to reference: `MODE`, `EXCLUDE_DOMAINS_REGEX`,
+    `INSECURE_SKIP_VERIFY`
+  - Added `Operational Modes` page (`modes.md`) to mkdocs navigation
+  - Updated Go version from 1.24+ to 1.25+ in contributing guide
+  - Updated project structure in contributing guide (added `sources/`, `internal/kubernetes/`,
+    `pkg/workload/`, `pkg/sshutil/`, `providers/rfc2136/`; removed obsolete `internal/sources/`)
+  - Added 11 missing CHANGELOG version comparison links (v0.3.1–v0.7.0)
+  - Replaced internal IP `10.30.0.100` with generic `10.0.0.100` in Kubernetes source docs
+    and annotations code comment
+  - Fixed placeholder GitLab social link in mkdocs.yml
+  - Added `instance_id` field and RFC 2136 provider example to config.example.yml
+- **Helm Chart**: Bumped chart version to 0.2.0 and appVersion to 0.9.1
+
 ## [0.9.0] - 2026-03-08
 
 ### Added
@@ -414,10 +433,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitLab CI/CD pipeline with GitHub release automation
 - Docker Hub and GitHub Container Registry publishing
 
-[Unreleased]: https://github.com/maxfield-allison/dnsweaver/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/maxfield-allison/dnsweaver/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/maxfield-allison/dnsweaver/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/maxfield-allison/dnsweaver/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/maxfield-allison/dnsweaver/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/maxfield-allison/dnsweaver/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/maxfield-allison/dnsweaver/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/maxfield-allison/dnsweaver/compare/v0.5.3...v0.6.0
+[0.5.3]: https://github.com/maxfield-allison/dnsweaver/compare/v0.5.2...v0.5.3
+[0.5.2]: https://github.com/maxfield-allison/dnsweaver/compare/v0.5.1...v0.5.2
+[0.5.1]: https://github.com/maxfield-allison/dnsweaver/compare/v0.5.0...v0.5.1
+[0.5.0]: https://github.com/maxfield-allison/dnsweaver/compare/v0.4.2...v0.5.0
+[0.4.2]: https://github.com/maxfield-allison/dnsweaver/compare/v0.4.1...v0.4.2
+[0.4.1]: https://github.com/maxfield-allison/dnsweaver/compare/v0.3.3...v0.4.1
+[0.3.3]: https://github.com/maxfield-allison/dnsweaver/compare/v0.3.2...v0.3.3
+[0.3.2]: https://github.com/maxfield-allison/dnsweaver/compare/v0.3.1...v0.3.2
+[0.3.1]: https://github.com/maxfield-allison/dnsweaver/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/maxfield-allison/dnsweaver/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/maxfield-allison/dnsweaver/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/maxfield-allison/dnsweaver/compare/v0.1.1...v0.2.0

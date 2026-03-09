@@ -2,8 +2,8 @@ apiVersion: v2
 name: dnsweaver
 description: Automatic DNS record management for Docker and Kubernetes workloads
 type: application
-version: 0.1.0
-appVersion: "0.9.0"
+version: 0.2.0
+appVersion: "0.9.1"
 home: https://github.com/maxfield-allison/dnsweaver
 sources:
   - https://github.com/maxfield-allison/dnsweaver

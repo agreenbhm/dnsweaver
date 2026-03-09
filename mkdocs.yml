@@ -73,8 +73,8 @@ extra:
       link: https://hub.docker.com/r/maxamill/dnsweaver
       name: dnsweaver on Docker Hub
     - icon: simple/gitlab
-      link: https://gitlab.example.com/root/dnsweaver
-      name: Source on GitLab
+      link: https://github.com/maxfield-allison/dnsweaver
+      name: Source Repository
 
 markdown_extensions:
   - abbr
@@ -123,6 +123,7 @@ nav:
       - configuration/index.md
       - Environment Variables: configuration/environment.md
       - Domain Matching: configuration/domains.md
+      - Operational Modes: configuration/modes.md
       - Docker Secrets: configuration/secrets.md
   - Providers:
       - providers/index.md

@@ -55,6 +55,10 @@ reconciler:
   ownership_tracking: true # Use TXT records to track record ownership
   adopt_existing: false   # Adopt pre-existing DNS records by creating TXT records
 
+# Multi-instance coordination
+# Unique identifier for this dnsweaver instance (for shared zone management)
+# instance_id: ""          # e.g., "node-1", "k8s-prod" (1-63 chars, alphanumeric/hyphens/dots)
+
 # Docker connection settings
 docker:
   host: unix:///var/run/docker.sock  # Docker socket or TCP URL
@@ -155,6 +159,21 @@ providers:
       timeout: 30s
       retries: "3"
       retry_delay: 5s
+
+  # RFC 2136 Dynamic DNS example
+  # - name: bind-dns
+  #   type: rfc2136
+  #   domains:
+  #     - "*.rfc.example.com"
+  #   record_type: A
+  #   target: 10.0.0.100
+  #   ttl: 300
+  #   config:
+  #     server: ns1.example.com:53
+  #     zone: rfc.example.com.
+  #     tsig_key_name: dnsweaver.
+  #     tsig_secret: ${TSIG_SECRET}
+  #     tsig_algorithm: hmac-sha256
 
 # Advanced: Using regex for domain matching
 # - name: regex-example

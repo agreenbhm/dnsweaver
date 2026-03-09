@@ -152,7 +152,7 @@ Verify credentials:
 For self-signed certificates:
 
 ```yaml
-- DNSWEAVER_<PROVIDER>_TLS_SKIP_VERIFY=true
+- DNSWEAVER_{INSTANCE}_INSECURE_SKIP_VERIFY=true
 ```
 
 Or add the CA certificate to dnsweaver's trust store.
