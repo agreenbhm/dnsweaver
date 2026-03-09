@@ -5,9 +5,9 @@
 [![License](https://img.shields.io/github/license/maxfield-allison/dnsweaver?style=flat-square)](LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/maxfield-allison/dnsweaver?style=flat-square)](go.mod)
 
-**Automatic DNS record management for Docker containers with multi-provider support.**
+**Automatic DNS record management for Docker and Kubernetes workloads with multi-provider support.**
 
-dnsweaver watches Docker events and automatically creates and deletes DNS records for services with reverse proxy labels (Traefik, etc.). Unlike single-provider tools, dnsweaver supports **split-horizon DNS** and **multiple DNS providers** simultaneously.
+dnsweaver watches Docker events and Kubernetes resources to automatically create and delete DNS records. Unlike single-provider tools, dnsweaver supports **split-horizon DNS**, **multiple DNS providers** simultaneously, and works across both **Docker** and **Kubernetes** platforms.
 
 📚 **[Full Documentation](https://maxfield-allison.github.io/dnsweaver/)**
 
@@ -16,11 +16,12 @@ dnsweaver watches Docker events and automatically creates and deletes DNS record
 - 🔀 **Multi-Provider Support** — Route different domains to different DNS providers
 - 🌐 **Split-Horizon DNS** — Internal and external records from the same container labels
 - 🐳 **Docker & Swarm Native** — Works with standalone Docker and Docker Swarm clusters
+- ☸️ **Kubernetes Support** — Watches Ingress, IngressRoute, HTTPRoute, and Service resources
 - 🏗️ **Multi-Instance Safe** — Run multiple dnsweaver instances on the same DNS zone without conflicts
 - 🔒 **Socket Proxy Compatible** — Connect via TCP to a Docker socket proxy for improved security
 - 🏷️ **Traefik Integration** — Parses `traefik.http.routers.*.rule` labels to extract hostnames
 - 📊 **Observable** — Prometheus metrics, health endpoints, structured logging
-- 🔑 **Secrets Support** — Docker secrets compatible via `_FILE` suffix variables
+- 🔑 **Secrets Support** — Docker secrets and Kubernetes Secrets via `_FILE` suffix variables
 
 ## Supported Providers
 
@@ -100,10 +101,41 @@ flowchart LR
 | [Getting Started](https://maxfield-allison.github.io/dnsweaver/getting-started/) | Installation and first configuration |
 | [Configuration](https://maxfield-allison.github.io/dnsweaver/configuration/environment/) | Environment variables reference |
 | [Providers](https://maxfield-allison.github.io/dnsweaver/providers/) | Provider-specific setup guides |
+| [Kubernetes](https://maxfield-allison.github.io/dnsweaver/deployment/kubernetes/) | Kubernetes deployment with Helm/Kustomize |
 | [Split-Horizon DNS](https://maxfield-allison.github.io/dnsweaver/deployment/split-horizon/) | Internal + external records |
 | [Docker Swarm](https://maxfield-allison.github.io/dnsweaver/deployment/swarm/) | Swarm deployment guide |
 | [Observability](https://maxfield-allison.github.io/dnsweaver/observability/) | Metrics, logging, and health checks |
 | [FAQ](https://maxfield-allison.github.io/dnsweaver/faq/) | Common questions and troubleshooting |
+
+## Kubernetes Quick Start
+
+Deploy dnsweaver to watch Kubernetes resources for DNS management:
+
+```bash
+# Using Kustomize
+kubectl apply -k https://github.com/maxfield-allison/dnsweaver/deploy/kustomize/base
+
+# Using Helm
+helm install dnsweaver deploy/helm/dnsweaver/ \
+  --namespace dnsweaver --create-namespace
+```
+
+dnsweaver automatically detects hostnames from Ingress, IngressRoute (Traefik), HTTPRoute (Gateway API), and Service resources. Use `dnsweaver.dev/*` annotations for per-resource overrides:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-app
+  annotations:
+    dnsweaver.dev/record-type: "A"
+    dnsweaver.dev/target: "10.0.0.100"
+spec:
+  rules:
+    - host: app.example.com
+```
+
+See the [Kubernetes deployment guide](https://maxfield-allison.github.io/dnsweaver/deployment/kubernetes/) for full configuration.
 
 ## Split-Horizon DNS Example
 

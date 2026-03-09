@@ -20,8 +20,14 @@ type FileConfig struct {
 	// Reconciler settings
 	Reconciler *FileReconcilerConfig `yaml:"reconciler,omitempty"`
 
+	// Platform selection: docker, kubernetes, or both (default: docker)
+	Platform string `yaml:"platform,omitempty"`
+
 	// Docker connection settings
 	Docker *FileDockerConfig `yaml:"docker,omitempty"`
+
+	// Kubernetes watcher settings
+	Kubernetes *FileKubernetesConfig `yaml:"kubernetes,omitempty"`
 
 	// Hostname sources
 	Sources []FileSourceConfig `yaml:"sources,omitempty"`
@@ -54,6 +60,18 @@ type FileReconcilerConfig struct {
 type FileDockerConfig struct {
 	Host string `yaml:"host,omitempty"` // unix:///var/run/docker.sock or tcp://...
 	Mode string `yaml:"mode,omitempty"` // auto, swarm, standalone
+}
+
+// FileKubernetesConfig holds Kubernetes watcher settings.
+type FileKubernetesConfig struct {
+	Kubeconfig        string   `yaml:"kubeconfig,omitempty"`         // Path to kubeconfig; empty = in-cluster
+	Namespaces        []string `yaml:"namespaces,omitempty"`         // Namespaces to watch; empty = all
+	WatchIngress      *bool    `yaml:"watch_ingress,omitempty"`      // Watch Ingress resources (default: true)
+	WatchIngressRoute *bool    `yaml:"watch_ingressroute,omitempty"` // Watch IngressRoute CRDs (default: true)
+	WatchHTTPRoute    *bool    `yaml:"watch_httproute,omitempty"`    // Watch HTTPRoute CRDs (default: true)
+	WatchServices     *bool    `yaml:"watch_services,omitempty"`     // Watch Service resources (default: false)
+	LabelSelector     string   `yaml:"label_selector,omitempty"`     // Label selector filter
+	AnnotationFilter  string   `yaml:"annotation_filter,omitempty"`  // Annotation key=value filter
 }
 
 // FileSourceConfig holds configuration for a hostname source.
@@ -126,9 +144,20 @@ func (c *FileConfig) interpolateEnvVars() {
 		c.Reconciler.Interval = InterpolateEnvVars(c.Reconciler.Interval)
 	}
 
+	c.Platform = InterpolateEnvVars(c.Platform)
+
 	if c.Docker != nil {
 		c.Docker.Host = InterpolateEnvVars(c.Docker.Host)
 		c.Docker.Mode = InterpolateEnvVars(c.Docker.Mode)
+	}
+
+	if c.Kubernetes != nil {
+		c.Kubernetes.Kubeconfig = InterpolateEnvVars(c.Kubernetes.Kubeconfig)
+		for i := range c.Kubernetes.Namespaces {
+			c.Kubernetes.Namespaces[i] = InterpolateEnvVars(c.Kubernetes.Namespaces[i])
+		}
+		c.Kubernetes.LabelSelector = InterpolateEnvVars(c.Kubernetes.LabelSelector)
+		c.Kubernetes.AnnotationFilter = InterpolateEnvVars(c.Kubernetes.AnnotationFilter)
 	}
 
 	for i := range c.Sources {
@@ -192,19 +221,24 @@ func LoadFile(path string) (*FileConfig, error) {
 // Values from file take precedence over defaults; env vars override later.
 func (c *FileConfig) ToGlobalConfig() *GlobalConfig {
 	cfg := &GlobalConfig{
-		LogLevel:          DefaultLogLevel,
-		LogFormat:         DefaultLogFormat,
-		DryRun:            DefaultDryRun,
-		CleanupOrphans:    DefaultCleanupOrphans,
-		CleanupOnStop:     DefaultCleanupOnStop,
-		OwnershipTracking: DefaultOwnershipTracking,
-		AdoptExisting:     DefaultAdoptExisting,
-		DefaultTTL:        DefaultTTL,
-		ReconcileInterval: DefaultReconcileInterval,
-		HealthPort:        DefaultHealthPort,
-		DockerHost:        DefaultDockerHost,
-		DockerMode:        DefaultDockerMode,
-		Source:            DefaultSource,
+		LogLevel:             DefaultLogLevel,
+		LogFormat:            DefaultLogFormat,
+		DryRun:               DefaultDryRun,
+		CleanupOrphans:       DefaultCleanupOrphans,
+		CleanupOnStop:        DefaultCleanupOnStop,
+		OwnershipTracking:    DefaultOwnershipTracking,
+		AdoptExisting:        DefaultAdoptExisting,
+		DefaultTTL:           DefaultTTL,
+		ReconcileInterval:    DefaultReconcileInterval,
+		HealthPort:           DefaultHealthPort,
+		Platform:             DefaultPlatform,
+		DockerHost:           DefaultDockerHost,
+		DockerMode:           DefaultDockerMode,
+		K8sWatchIngress:      true,
+		K8sWatchIngressRoute: true,
+		K8sWatchHTTPRoute:    true,
+		K8sWatchServices:     false,
+		Source:               DefaultSource,
 	}
 
 	if c.Logging != nil {
@@ -248,6 +282,37 @@ func (c *FileConfig) ToGlobalConfig() *GlobalConfig {
 		}
 		if c.Docker.Mode != "" {
 			cfg.DockerMode = strings.ToLower(c.Docker.Mode)
+		}
+	}
+
+	if c.Platform != "" {
+		cfg.Platform = strings.ToLower(c.Platform)
+	}
+
+	if c.Kubernetes != nil {
+		if c.Kubernetes.Kubeconfig != "" {
+			cfg.K8sKubeconfig = c.Kubernetes.Kubeconfig
+		}
+		if len(c.Kubernetes.Namespaces) > 0 {
+			cfg.K8sNamespaces = strings.Join(c.Kubernetes.Namespaces, ",")
+		}
+		if c.Kubernetes.WatchIngress != nil {
+			cfg.K8sWatchIngress = *c.Kubernetes.WatchIngress
+		}
+		if c.Kubernetes.WatchIngressRoute != nil {
+			cfg.K8sWatchIngressRoute = *c.Kubernetes.WatchIngressRoute
+		}
+		if c.Kubernetes.WatchHTTPRoute != nil {
+			cfg.K8sWatchHTTPRoute = *c.Kubernetes.WatchHTTPRoute
+		}
+		if c.Kubernetes.WatchServices != nil {
+			cfg.K8sWatchServices = *c.Kubernetes.WatchServices
+		}
+		if c.Kubernetes.LabelSelector != "" {
+			cfg.K8sLabelSelector = c.Kubernetes.LabelSelector
+		}
+		if c.Kubernetes.AnnotationFilter != "" {
+			cfg.K8sAnnotationFilter = c.Kubernetes.AnnotationFilter
 		}
 	}
 

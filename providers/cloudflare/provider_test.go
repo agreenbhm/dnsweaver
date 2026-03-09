@@ -459,3 +459,268 @@ func TestProvider_ImplementsInterface(t *testing.T) {
 	// Verify it implements provider.Provider
 	var _ provider.Provider = p
 }
+
+func TestResolveProxied(t *testing.T) {
+	tests := []struct {
+		name           string
+		providerConfig bool // provider-level proxied default
+		record         provider.Record
+		expected       bool
+	}{
+		{
+			name:           "provider default true, no metadata",
+			providerConfig: true,
+			record: provider.Record{
+				Type: provider.RecordTypeA,
+			},
+			expected: true,
+		},
+		{
+			name:           "provider default false, no metadata",
+			providerConfig: false,
+			record: provider.Record{
+				Type: provider.RecordTypeA,
+			},
+			expected: false,
+		},
+		{
+			name:           "metadata overrides provider default to false",
+			providerConfig: true,
+			record: provider.Record{
+				Type:     provider.RecordTypeA,
+				Metadata: map[string]string{"proxied": "false"},
+			},
+			expected: false,
+		},
+		{
+			name:           "metadata overrides provider default to true",
+			providerConfig: false,
+			record: provider.Record{
+				Type:     provider.RecordTypeA,
+				Metadata: map[string]string{"proxied": "true"},
+			},
+			expected: true,
+		},
+		{
+			name:           "TXT records never proxied even with metadata",
+			providerConfig: true,
+			record: provider.Record{
+				Type:     provider.RecordTypeTXT,
+				Metadata: map[string]string{"proxied": "true"},
+			},
+			expected: false,
+		},
+		{
+			name:           "SRV records never proxied even with metadata",
+			providerConfig: true,
+			record: provider.Record{
+				Type:     provider.RecordTypeSRV,
+				Metadata: map[string]string{"proxied": "true"},
+			},
+			expected: false,
+		},
+		{
+			name:           "CNAME respects metadata override",
+			providerConfig: false,
+			record: provider.Record{
+				Type:     provider.RecordTypeCNAME,
+				Metadata: map[string]string{"proxied": "true"},
+			},
+			expected: true,
+		},
+		{
+			name:           "AAAA respects metadata override",
+			providerConfig: true,
+			record: provider.Record{
+				Type:     provider.RecordTypeAAAA,
+				Metadata: map[string]string{"proxied": "false"},
+			},
+			expected: false,
+		},
+		{
+			name:           "nil metadata uses provider default",
+			providerConfig: true,
+			record: provider.Record{
+				Type:     provider.RecordTypeA,
+				Metadata: nil,
+			},
+			expected: true,
+		},
+		{
+			name:           "empty metadata map uses provider default",
+			providerConfig: false,
+			record: provider.Record{
+				Type:     provider.RecordTypeA,
+				Metadata: map[string]string{},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &Config{
+				Token:   "test-token",
+				ZoneID:  "zone-123",
+				TTL:     300,
+				Proxied: tt.providerConfig,
+			}
+			p, err := New("test", config)
+			if err != nil {
+				t.Fatalf("failed to create provider: %v", err)
+			}
+
+			result := p.resolveProxied(tt.record)
+			if result != tt.expected {
+				t.Errorf("resolveProxied() = %v, expected %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestProvider_Create_WithMetadataProxiedOverride(t *testing.T) {
+	var receivedBody map[string]interface{}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			_ = json.NewDecoder(r.Body).Decode(&receivedBody)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(successProviderResponse(map[string]interface{}{
+			"id": "new-rec",
+		}))
+	}))
+	defer server.Close()
+
+	// Provider default is proxied=false, but metadata overrides to true
+	config := &Config{
+		Token:   "test-token",
+		ZoneID:  "zone-123",
+		TTL:     300,
+		Proxied: false,
+	}
+	p, _ := New("test", config)
+	p.client.apiEndpoint = server.URL
+
+	record := provider.Record{
+		Hostname: "override.example.com",
+		Type:     provider.RecordTypeA,
+		Target:   "10.0.0.1",
+		TTL:      300,
+		Metadata: map[string]string{"proxied": "true"},
+	}
+
+	err := p.Create(context.Background(), record)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if receivedBody["proxied"] != true {
+		t.Errorf("expected proxied true (metadata override), got %v", receivedBody["proxied"])
+	}
+}
+
+func TestProvider_Create_MetadataProxiedFalseOverridesDefault(t *testing.T) {
+	var receivedBody map[string]interface{}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			_ = json.NewDecoder(r.Body).Decode(&receivedBody)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(successProviderResponse(map[string]interface{}{
+			"id": "new-rec",
+		}))
+	}))
+	defer server.Close()
+
+	// Provider default is proxied=true, but metadata overrides to false
+	config := &Config{
+		Token:   "test-token",
+		ZoneID:  "zone-123",
+		TTL:     300,
+		Proxied: true,
+	}
+	p, _ := New("test", config)
+	p.client.apiEndpoint = server.URL
+
+	record := provider.Record{
+		Hostname: "dns-only.example.com",
+		Type:     provider.RecordTypeA,
+		Target:   "10.0.0.1",
+		TTL:      300,
+		Metadata: map[string]string{"proxied": "false"},
+	}
+
+	err := p.Create(context.Background(), record)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if receivedBody["proxied"] != false {
+		t.Errorf("expected proxied false (metadata override), got %v", receivedBody["proxied"])
+	}
+}
+
+func TestProvider_List_PopulatesProxiedMetadata(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		query := r.URL.Query()
+		recordType := query.Get("type")
+
+		switch recordType {
+		case "A":
+			_ = json.NewEncoder(w).Encode(successProviderResponse([]map[string]interface{}{
+				{"id": "rec-1", "type": "A", "name": "proxied.example.com", "content": "10.0.0.1", "ttl": 1, "proxied": true},
+				{"id": "rec-2", "type": "A", "name": "dnsonly.example.com", "content": "10.0.0.2", "ttl": 300, "proxied": false},
+			}))
+		case "AAAA":
+			_ = json.NewEncoder(w).Encode(successProviderResponse([]map[string]interface{}{}))
+		case "CNAME":
+			_ = json.NewEncoder(w).Encode(successProviderResponse([]map[string]interface{}{
+				{"id": "rec-3", "type": "CNAME", "name": "www.example.com", "content": "example.com", "ttl": 300, "proxied": true},
+			}))
+		case "TXT":
+			_ = json.NewEncoder(w).Encode(successProviderResponse([]map[string]interface{}{
+				{"id": "rec-4", "type": "TXT", "name": "example.com", "content": "v=spf1", "ttl": 300, "proxied": false},
+			}))
+		case "SRV":
+			_ = json.NewEncoder(w).Encode(successProviderResponse([]map[string]interface{}{}))
+		default:
+			_ = json.NewEncoder(w).Encode(successProviderResponse([]map[string]interface{}{}))
+		}
+	}))
+	defer server.Close()
+
+	p := newTestProvider(t, server.URL)
+	records, err := p.List(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Check A records have proxied metadata
+	for _, rec := range records {
+		switch rec.Hostname {
+		case "proxied.example.com":
+			if rec.Metadata == nil || rec.Metadata["proxied"] != "true" {
+				t.Errorf("expected proxied.example.com Metadata[\"proxied\"]=\"true\", got %v", rec.Metadata)
+			}
+		case "dnsonly.example.com":
+			if rec.Metadata == nil || rec.Metadata["proxied"] != "false" {
+				t.Errorf("expected dnsonly.example.com Metadata[\"proxied\"]=\"false\", got %v", rec.Metadata)
+			}
+		case "www.example.com":
+			if rec.Metadata == nil || rec.Metadata["proxied"] != "true" {
+				t.Errorf("expected www.example.com Metadata[\"proxied\"]=\"true\", got %v", rec.Metadata)
+			}
+		case "example.com":
+			// TXT records should NOT have proxied metadata
+			if rec.Metadata != nil {
+				if _, hasProxied := rec.Metadata["proxied"]; hasProxied {
+					t.Errorf("TXT record should not have proxied metadata, got %v", rec.Metadata)
+				}
+			}
+		}
+	}
+}

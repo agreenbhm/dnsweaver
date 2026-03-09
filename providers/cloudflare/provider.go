@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"sync"
 
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
@@ -102,7 +103,7 @@ func NewFromMap(name string, config map[string]string) (*Provider, error) {
 		ZoneID:  config["ZONE_ID"],
 		Zone:    config["ZONE"],
 		TTL:     DefaultTTL,
-		Proxied: false,
+		Proxied: true,
 	}
 
 	// Parse TTL if provided
@@ -198,6 +199,7 @@ func (p *Provider) List(ctx context.Context) ([]provider.Record, error) {
 			Target:     r.Content,
 			TTL:        r.TTL,
 			ProviderID: r.ID,
+			Metadata:   proxiedMetadata(r.Proxied),
 		})
 	}
 
@@ -213,6 +215,7 @@ func (p *Provider) List(ctx context.Context) ([]provider.Record, error) {
 			Target:     r.Content,
 			TTL:        r.TTL,
 			ProviderID: r.ID,
+			Metadata:   proxiedMetadata(r.Proxied),
 		})
 	}
 
@@ -228,6 +231,7 @@ func (p *Provider) List(ctx context.Context) ([]provider.Record, error) {
 			Target:     r.Content,
 			TTL:        r.TTL,
 			ProviderID: r.ID,
+			Metadata:   proxiedMetadata(r.Proxied),
 		})
 	}
 
@@ -295,11 +299,8 @@ func (p *Provider) Create(ctx context.Context, record provider.Record) error {
 	}
 
 	// Determine if record should be proxied
-	// TXT and SRV records cannot be proxied by Cloudflare
-	proxied := p.proxied
-	if record.Type == provider.RecordTypeTXT || record.Type == provider.RecordTypeSRV {
-		proxied = false
-	}
+	// Respects per-record Metadata["proxied"] override, then provider default
+	proxied := p.resolveProxied(record)
 
 	// Cloudflare uses TTL=1 for "automatic" (when proxied)
 	if proxied && ttl < 60 {
@@ -393,9 +394,17 @@ func (p *Provider) Update(ctx context.Context, existing, desired provider.Record
 	}
 
 	// Cloudflare's update API takes the new values
+	// Determine proxied state for the desired record
+	proxied := p.resolveProxied(desired)
+
+	// Cloudflare uses TTL=1 for "automatic" (when proxied)
+	if proxied && ttl < 60 {
+		ttl = 1
+	}
+
 	switch desired.Type {
 	case provider.RecordTypeA, provider.RecordTypeAAAA, provider.RecordTypeCNAME, provider.RecordTypeTXT:
-		err = p.client.UpdateRecord(ctx, zoneID, apiRecord.ID, string(desired.Type), desired.Hostname, desired.Target, ttl, p.proxied)
+		err = p.client.UpdateRecord(ctx, zoneID, apiRecord.ID, string(desired.Type), desired.Hostname, desired.Target, ttl, proxied)
 		if err != nil {
 			return fmt.Errorf("updating %s record: %w", desired.Type, err)
 		}
@@ -424,6 +433,7 @@ func (p *Provider) Update(ctx context.Context, existing, desired provider.Record
 		slog.String("old_target", existing.Target),
 		slog.String("new_target", desired.Target),
 		slog.Int("ttl", ttl),
+		slog.Bool("proxied", proxied),
 	)
 
 	return nil
@@ -434,3 +444,31 @@ var _ provider.Provider = (*Provider)(nil)
 
 // Ensure Provider implements provider.Updater at compile time.
 var _ provider.Updater = (*Provider)(nil)
+
+// resolveProxied determines the effective proxied state for a record.
+// Priority order:
+//  1. TXT/SRV records are never proxied (Cloudflare limitation)
+//  2. Per-record Metadata["proxied"] override (if present)
+//  3. Provider-level config default (p.proxied)
+func (p *Provider) resolveProxied(record provider.Record) bool {
+	// TXT and SRV records cannot be proxied by Cloudflare
+	if record.Type == provider.RecordTypeTXT || record.Type == provider.RecordTypeSRV {
+		return false
+	}
+
+	// Check per-record metadata override
+	if record.Metadata != nil {
+		if v, ok := record.Metadata["proxied"]; ok {
+			return parseBool(v)
+		}
+	}
+
+	// Fall back to provider-level default
+	return p.proxied
+}
+
+// proxiedMetadata returns a Metadata map with the proxied state.
+// Used by List() to populate Record.Metadata from the Cloudflare API response.
+func proxiedMetadata(proxied bool) map[string]string {
+	return map[string]string{"proxied": strconv.FormatBool(proxied)}
+}

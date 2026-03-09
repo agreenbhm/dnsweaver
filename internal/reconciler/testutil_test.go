@@ -6,47 +6,48 @@ import (
 	"os"
 	"sync"
 
-	"gitlab.bluewillows.net/root/dnsweaver/internal/docker"
 	"gitlab.bluewillows.net/root/dnsweaver/internal/matcher"
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/source"
+	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
 )
 
 // =============================================================================
 // Mock WorkloadLister for Reconcile() tests
 // =============================================================================
 
-// testMockWorkloadLister implements WorkloadLister for testing.
+// testMockWorkloadLister implements workload.Lister for testing.
 type testMockWorkloadLister struct {
-	mode      docker.Mode
-	workloads []docker.Workload
+	platform  workload.Platform
+	workloads []workload.Workload
 	listErr   error
 }
 
-func newTestMockWorkloadLister(mode docker.Mode) *testMockWorkloadLister {
+func newTestMockWorkloadLister(platform workload.Platform) *testMockWorkloadLister {
 	return &testMockWorkloadLister{
-		mode:      mode,
-		workloads: make([]docker.Workload, 0),
+		platform:  platform,
+		workloads: make([]workload.Workload, 0),
 	}
 }
 
-func (m *testMockWorkloadLister) ListWorkloads(_ context.Context) ([]docker.Workload, error) {
+func (m *testMockWorkloadLister) ListWorkloads(_ context.Context) ([]workload.Workload, error) {
 	if m.listErr != nil {
 		return nil, m.listErr
 	}
 	return m.workloads, nil
 }
 
-func (m *testMockWorkloadLister) Mode() docker.Mode {
-	return m.mode
+func (m *testMockWorkloadLister) Platform() workload.Platform {
+	return m.platform
 }
 
 func (m *testMockWorkloadLister) AddWorkload(name string, labels map[string]string) {
-	m.workloads = append(m.workloads, docker.Workload{
-		ID:     "id-" + name,
-		Name:   name,
-		Labels: labels,
-		Type:   docker.WorkloadTypeService,
+	m.workloads = append(m.workloads, workload.Workload{
+		ID:       "id-" + name,
+		Name:     name,
+		Labels:   labels,
+		Platform: m.platform,
+		Kind:     workload.KindService,
 	})
 }
 
@@ -234,7 +235,7 @@ func newTestMockSource(name string, hostnames ...source.Hostname) *testMockSourc
 func (m *testMockSource) Name() string { return m.name }
 
 //nolint:unused // Reserved for future Reconcile() function tests
-func (m *testMockSource) Extract(_ context.Context, _ map[string]string) ([]source.Hostname, error) {
+func (m *testMockSource) Extract(_ context.Context, _ workload.Workload) ([]source.Hostname, error) {
 	return m.hostnames, nil
 }
 
@@ -246,6 +247,11 @@ func (m *testMockSource) Discover(_ context.Context) ([]source.Hostname, error) 
 //nolint:unused // Reserved for future Reconcile() function tests
 func (m *testMockSource) SupportsDiscovery() bool {
 	return false
+}
+
+//nolint:unused // Reserved for future Reconcile() function tests
+func (m *testMockSource) SupportedPlatforms() []workload.Platform {
+	return nil // all platforms
 }
 
 // testProviderRegistry creates a test provider registry with mock provider(s).

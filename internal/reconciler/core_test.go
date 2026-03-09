@@ -7,6 +7,7 @@ import (
 
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/source"
+	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
 )
 
 // =============================================================================
@@ -854,7 +855,7 @@ func TestEnsureOwnershipRecord_CreatesWhenEnabled(t *testing.T) {
 	}
 
 	inst, _ := providers.Get("test-dns")
-	r.ensureOwnershipRecord(context.Background(), "app.example.com", inst)
+	r.ensureOwnershipRecord(context.Background(), "app.example.com", inst, nil)
 
 	created := mock.GetCreated()
 	var foundOwnership bool
@@ -896,7 +897,7 @@ func TestEnsureOwnershipRecord_SkipsWhenDisabled(t *testing.T) {
 	}
 
 	inst, _ := providers.Get("test-dns")
-	r.ensureOwnershipRecord(context.Background(), "app.example.com", inst)
+	r.ensureOwnershipRecord(context.Background(), "app.example.com", inst, nil)
 
 	created := mock.GetCreated()
 	for _, c := range created {
@@ -1199,5 +1200,155 @@ func TestCleanupOrphans_AuthoritativeMode_DeletesAll(t *testing.T) {
 	}
 	if !deletedUnowned {
 		t.Error("unowned record should be deleted in authoritative mode (ignores ownership)")
+	}
+}
+
+func TestEnsureRecord_UsesRecoveredMetadata(t *testing.T) {
+	// When source provides no metadata but recovered metadata exists,
+	// the reconciler should use recovered metadata as a fallback.
+	logger := quietLogger()
+
+	mockProvider := newTestMockProvider("test-dns")
+	providers := provider.NewRegistry(logger)
+	providers.RegisterFactory("mock", func(cfg provider.FactoryConfig) (provider.Provider, error) {
+		return mockProvider, nil
+	})
+	_ = providers.CreateInstance(provider.ProviderInstanceConfig{
+		Name:       "test-dns",
+		TypeName:   "mock",
+		RecordType: provider.RecordTypeA,
+		Target:     "10.0.0.1",
+		TTL:        300,
+		Domains:    []string{"*.example.com"},
+	})
+
+	dockerMock := newTestMockWorkloadLister(workload.PlatformDocker)
+	sources := source.NewRegistry(logger)
+
+	cfg := DefaultConfig()
+	cfg.Enabled = true
+	cfg.OwnershipTracking = true
+
+	r := New([]workload.Lister{dockerMock}, sources, providers,
+		WithConfig(cfg),
+		WithLogger(logger),
+	)
+
+	// Simulate recovered metadata from ownership TXT
+	r.recoveredMetadata = map[string]map[string]string{
+		"app.example.com": {"proxied": "true", "custom": "recovered"},
+	}
+
+	// Create hostname WITHOUT metadata (simulating source that doesn't provide it)
+	hostname := &source.Hostname{
+		Name:   "app.example.com",
+		Source: "test",
+	}
+
+	actions := r.ensureRecord(context.Background(), hostname, nil)
+
+	// Verify record was created
+	if len(actions) != 1 {
+		t.Fatalf("expected 1 action, got %d", len(actions))
+	}
+	if actions[0].Status != StatusSuccess {
+		t.Fatalf("expected success status, got %s: %s", actions[0].Status, actions[0].Error)
+	}
+
+	// Verify metadata was passed to the provider via the created record
+	records := mockProvider.records
+	var createdRecord provider.Record
+	for _, rec := range records {
+		if rec.Hostname == "app.example.com" && rec.Type == provider.RecordTypeA {
+			createdRecord = rec
+			break
+		}
+	}
+	if createdRecord.Hostname == "" {
+		t.Fatal("expected A record to be created for app.example.com")
+	}
+	if createdRecord.Metadata == nil {
+		t.Fatal("expected metadata on created record (from recovered metadata)")
+	}
+	if createdRecord.Metadata["proxied"] != "true" {
+		t.Errorf("expected proxied=true, got %q", createdRecord.Metadata["proxied"])
+	}
+	if createdRecord.Metadata["custom"] != "recovered" {
+		t.Errorf("expected custom=recovered, got %q", createdRecord.Metadata["custom"])
+	}
+
+	// Verify recovered metadata was consumed
+	remaining := r.RecoveredMetadata()
+	if len(remaining) != 0 {
+		t.Errorf("expected recovered metadata consumed after use, got %v", remaining)
+	}
+}
+
+func TestEnsureRecord_SourceMetadataTakesPrecedence(t *testing.T) {
+	// When source provides metadata, it should take precedence over recovered metadata.
+	logger := quietLogger()
+
+	mockProvider := newTestMockProvider("test-dns")
+	providers := provider.NewRegistry(logger)
+	providers.RegisterFactory("mock", func(cfg provider.FactoryConfig) (provider.Provider, error) {
+		return mockProvider, nil
+	})
+	_ = providers.CreateInstance(provider.ProviderInstanceConfig{
+		Name:       "test-dns",
+		TypeName:   "mock",
+		RecordType: provider.RecordTypeA,
+		Target:     "10.0.0.1",
+		TTL:        300,
+		Domains:    []string{"*.example.com"},
+	})
+
+	dockerMock := newTestMockWorkloadLister(workload.PlatformDocker)
+	sources := source.NewRegistry(logger)
+
+	cfg := DefaultConfig()
+	cfg.Enabled = true
+	cfg.OwnershipTracking = true
+
+	r := New([]workload.Lister{dockerMock}, sources, providers,
+		WithConfig(cfg),
+		WithLogger(logger),
+	)
+
+	// Simulate recovered metadata from ownership TXT (old value)
+	r.recoveredMetadata = map[string]map[string]string{
+		"app.example.com": {"proxied": "true"},
+	}
+
+	// Create hostname WITH metadata (source provides new value)
+	hostname := &source.Hostname{
+		Name:   "app.example.com",
+		Source: "test",
+		RecordHints: &source.RecordHints{
+			Metadata: map[string]string{"proxied": "false"},
+		},
+	}
+
+	actions := r.ensureRecord(context.Background(), hostname, nil)
+
+	if len(actions) != 1 {
+		t.Fatalf("expected 1 action, got %d", len(actions))
+	}
+	if actions[0].Status != StatusSuccess {
+		t.Fatalf("expected success, got %s: %s", actions[0].Status, actions[0].Error)
+	}
+
+	// Verify source metadata was used (not recovered)
+	var createdRecord provider.Record
+	for _, rec := range mockProvider.records {
+		if rec.Hostname == "app.example.com" && rec.Type == provider.RecordTypeA {
+			createdRecord = rec
+			break
+		}
+	}
+	if createdRecord.Metadata == nil {
+		t.Fatal("expected metadata on created record")
+	}
+	if createdRecord.Metadata["proxied"] != "false" {
+		t.Errorf("source metadata should win: expected proxied=false, got %q", createdRecord.Metadata["proxied"])
 	}
 }

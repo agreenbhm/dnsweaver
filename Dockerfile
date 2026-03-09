@@ -16,7 +16,7 @@
 # Multi-arch support: amd64 + arm64
 # =============================================================================
 
-ARG GO_VERSION=1.24
+ARG GO_VERSION=1.25
 ARG ALPINE_VERSION=3.20
 
 # -----------------------------------------------------------------------------
@@ -59,7 +59,7 @@ FROM alpine:${ALPINE_VERSION}
 
 # Labels
 LABEL org.opencontainers.image.title="dnsweaver" \
-    org.opencontainers.image.description="Automatic DNS record management for Docker containers" \
+    org.opencontainers.image.description="Automatic DNS record management for Docker and Kubernetes workloads" \
     org.opencontainers.image.source="https://gitlab.bluewillows.net/root/dnsweaver" \
     org.opencontainers.image.vendor="bluewillows.net"
 

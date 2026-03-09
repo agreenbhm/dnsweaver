@@ -205,6 +205,61 @@ func (c *Config) InstanceID() string {
 	return c.Global.InstanceID
 }
 
+// Platform returns the configured platform (docker, kubernetes, or both).
+func (c *Config) Platform() string {
+	return c.Global.Platform
+}
+
+// UseDocker returns true if the platform includes Docker.
+func (c *Config) UseDocker() bool {
+	return c.Global.Platform == "docker" || c.Global.Platform == "both"
+}
+
+// UseKubernetes returns true if the platform includes Kubernetes.
+func (c *Config) UseKubernetes() bool {
+	return c.Global.Platform == "kubernetes" || c.Global.Platform == "both"
+}
+
+// K8sKubeconfig returns the kubeconfig path (empty = in-cluster).
+func (c *Config) K8sKubeconfig() string {
+	return c.Global.K8sKubeconfig
+}
+
+// K8sNamespaces returns the comma-separated namespace filter.
+func (c *Config) K8sNamespaces() string {
+	return c.Global.K8sNamespaces
+}
+
+// K8sWatchIngress returns whether Ingress watching is enabled.
+func (c *Config) K8sWatchIngress() bool {
+	return c.Global.K8sWatchIngress
+}
+
+// K8sWatchIngressRoute returns whether IngressRoute watching is enabled.
+func (c *Config) K8sWatchIngressRoute() bool {
+	return c.Global.K8sWatchIngressRoute
+}
+
+// K8sWatchHTTPRoute returns whether HTTPRoute watching is enabled.
+func (c *Config) K8sWatchHTTPRoute() bool {
+	return c.Global.K8sWatchHTTPRoute
+}
+
+// K8sWatchServices returns whether Service watching is enabled.
+func (c *Config) K8sWatchServices() bool {
+	return c.Global.K8sWatchServices
+}
+
+// K8sLabelSelector returns the label selector for K8s resource filtering.
+func (c *Config) K8sLabelSelector() string {
+	return c.Global.K8sLabelSelector
+}
+
+// K8sAnnotationFilter returns the annotation filter for K8s resource filtering.
+func (c *Config) K8sAnnotationFilter() string {
+	return c.Global.K8sAnnotationFilter
+}
+
 // GetProviderInstance returns the configuration for a specific provider instance.
 func (c *Config) GetProviderInstance(name string) (*ProviderInstanceConfig, bool) {
 	for _, inst := range c.ProviderInstances {
@@ -243,9 +298,10 @@ func (c *Config) String() string {
 		sourceNames = fmt.Sprintf("%v", c.Sources.Names)
 	}
 	return fmt.Sprintf(
-		"Config{LogLevel=%s, DryRun=%v, ReconcileInterval=%s, Providers=%v, Sources=%s}",
+		"Config{LogLevel=%s, DryRun=%v, Platform=%s, ReconcileInterval=%s, Providers=%v, Sources=%s}",
 		c.Global.LogLevel,
 		c.Global.DryRun,
+		c.Global.Platform,
 		c.Global.ReconcileInterval,
 		c.ProviderNames,
 		sourceNames,

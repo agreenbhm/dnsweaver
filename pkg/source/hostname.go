@@ -263,6 +263,12 @@ type RecordHints struct {
 
 	// SRV contains SRV-specific fields when Type is "SRV".
 	SRV *SRVHints
+
+	// Metadata carries arbitrary key-value pairs from source labels to providers.
+	// Keys like "proxied" are actionable (trigger provider behavior).
+	// Keys prefixed with "meta." are informational (persisted but not acted upon).
+	// nil means no metadata.
+	Metadata map[string]string
 }
 
 // Hostname represents a hostname extracted from container labels.

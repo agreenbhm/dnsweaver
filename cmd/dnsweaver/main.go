@@ -1,6 +1,7 @@
-// dnsweaver provides automatic DNS record management for Docker containers.
-// It watches Docker/Swarm for container events, extracts hostnames from reverse
-// proxy labels (Traefik, etc.), and syncs DNS records to one or more providers.
+// dnsweaver provides automatic DNS record management for Docker containers
+// and Kubernetes workloads. It watches platform events, extracts hostnames from
+// reverse proxy labels/resources (Traefik, Ingress, etc.), and syncs DNS records
+// to one or more providers.
 package main
 
 import (
@@ -11,17 +12,20 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
 	"gitlab.bluewillows.net/root/dnsweaver/internal/config"
 	"gitlab.bluewillows.net/root/dnsweaver/internal/docker"
 	"gitlab.bluewillows.net/root/dnsweaver/internal/health"
+	k8s "gitlab.bluewillows.net/root/dnsweaver/internal/kubernetes"
 	"gitlab.bluewillows.net/root/dnsweaver/internal/metrics"
 	"gitlab.bluewillows.net/root/dnsweaver/internal/reconciler"
 	"gitlab.bluewillows.net/root/dnsweaver/internal/watcher"
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/source"
+	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
 	"gitlab.bluewillows.net/root/dnsweaver/providers/cloudflare"
 	"gitlab.bluewillows.net/root/dnsweaver/providers/dnsmasq"
 	"gitlab.bluewillows.net/root/dnsweaver/providers/pihole"
@@ -29,6 +33,7 @@ import (
 	"gitlab.bluewillows.net/root/dnsweaver/providers/technitium"
 	"gitlab.bluewillows.net/root/dnsweaver/providers/webhook"
 	dnsweaversource "gitlab.bluewillows.net/root/dnsweaver/sources/dnsweaver"
+	k8ssource "gitlab.bluewillows.net/root/dnsweaver/sources/kubernetes"
 	"gitlab.bluewillows.net/root/dnsweaver/sources/traefik"
 )
 
@@ -83,6 +88,7 @@ func run() error {
 		slog.String("version", Version),
 		slog.String("build_date", BuildDate),
 		slog.String("go_version", runtime.Version()),
+		slog.String("platform", cfg.Platform()),
 		slog.Bool("dry_run", cfg.DryRun()),
 		slog.Bool("adopt_existing", cfg.AdoptExisting()),
 		slog.String("instance_id", cfg.InstanceID()),
@@ -92,21 +98,24 @@ func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Initialize Docker client
-	dockerClient, err := docker.NewClient(ctx,
-		docker.WithHost(cfg.DockerHost()),
-		docker.WithMode(parseDockerMode(cfg.DockerMode())),
-		docker.WithLogger(logger),
-		docker.WithCleanupOnStop(cfg.CleanupOnStop()),
-	)
-	if err != nil {
-		return fmt.Errorf("creating docker client: %w", err)
-	}
-	defer func() { _ = dockerClient.Close() }()
+	// Initialize Docker client (when platform includes docker)
+	var dockerClient *docker.Client
+	if cfg.UseDocker() {
+		dockerClient, err = docker.NewClient(ctx,
+			docker.WithHost(cfg.DockerHost()),
+			docker.WithMode(parseDockerMode(cfg.DockerMode())),
+			docker.WithLogger(logger),
+			docker.WithCleanupOnStop(cfg.CleanupOnStop()),
+		)
+		if err != nil {
+			return fmt.Errorf("creating docker client: %w", err)
+		}
+		defer func() { _ = dockerClient.Close() }()
 
-	logger.Info("docker client connected",
-		slog.String("mode", dockerClient.Mode().String()),
-	)
+		logger.Info("docker client connected",
+			slog.String("mode", dockerClient.Mode().String()),
+		)
+	}
 
 	// Initialize source registry
 	sourceRegistry := source.NewRegistry(logger)
@@ -166,7 +175,45 @@ func run() error {
 		Enabled:           true,
 		InstanceID:        cfg.InstanceID(),
 	}
-	rec := reconciler.New(dockerClient, sourceRegistry, providerRegistry,
+
+	// Build workload listers for each enabled platform
+	var listers []workload.Lister
+	if dockerClient != nil {
+		dockerLister := docker.NewWorkloadListerAdapter(dockerClient)
+		listers = append(listers, dockerLister)
+	}
+
+	// Initialize Kubernetes watcher (when platform includes kubernetes).
+	// Created before reconciler so it can be included as a lister.
+	// The reconcile callback is set after reconciler creation via SetReconcileFunc.
+	var k8sWatcher *k8s.Watcher
+	if cfg.UseKubernetes() {
+		k8sCfg := buildK8sConfig(cfg)
+		clients, err := k8s.NewClients(k8sCfg.Kubeconfig)
+		if err != nil {
+			return fmt.Errorf("creating kubernetes clients: %w", err)
+		}
+
+		k8sWatcher = k8s.New(clients,
+			k8s.WithConfig(k8sCfg),
+			k8s.WithLogger(logger),
+		)
+		listers = append(listers, k8sWatcher)
+
+		logger.Info("kubernetes watcher configured",
+			slog.Bool("ingress", k8sCfg.WatchIngress),
+			slog.Bool("ingressroute", k8sCfg.WatchIngressRoute),
+			slog.Bool("httproute", k8sCfg.WatchHTTPRoute),
+			slog.Bool("services", k8sCfg.WatchServices),
+			slog.String("namespaces", cfg.K8sNamespaces()),
+		)
+	}
+
+	if len(listers) == 0 {
+		return fmt.Errorf("no platform watchers configured: set DNSWEAVER_PLATFORM to docker, kubernetes, or both")
+	}
+
+	rec := reconciler.New(listers, sourceRegistry, providerRegistry,
 		reconciler.WithConfig(reconcilerCfg),
 		reconciler.WithLogger(logger),
 	)
@@ -194,14 +241,22 @@ func run() error {
 		)
 	}
 
+	// Set reconcile callback on K8s watcher (now that triggerReconcile exists)
+	if k8sWatcher != nil {
+		k8sWatcher.SetReconcileFunc(triggerReconcile)
+	}
+
 	// Initialize Docker event watcher (#5)
-	dockerWatcher := watcher.New(dockerClient, triggerReconcile,
-		watcher.WithLogger(logger),
-		watcher.WithConfig(watcher.Config{
-			DebounceInterval:  2 * time.Second,
-			ReconnectInterval: 5 * time.Second,
-		}),
-	)
+	var dockerWatcher *watcher.Watcher
+	if dockerClient != nil {
+		dockerWatcher = watcher.New(dockerClient, triggerReconcile,
+			watcher.WithLogger(logger),
+			watcher.WithConfig(watcher.Config{
+				DebounceInterval:  2 * time.Second,
+				ReconnectInterval: 5 * time.Second,
+			}),
+		)
+	}
 
 	// Initialize file watcher for sources with file discovery (#22)
 	var fileWatcher *source.FileWatcher
@@ -252,8 +307,16 @@ func run() error {
 	}
 
 	// Start watchers
-	if err := dockerWatcher.Start(ctx); err != nil {
-		return fmt.Errorf("starting docker watcher: %w", err)
+	if dockerWatcher != nil {
+		if err := dockerWatcher.Start(ctx); err != nil {
+			return fmt.Errorf("starting docker watcher: %w", err)
+		}
+	}
+
+	if k8sWatcher != nil {
+		if err := k8sWatcher.Start(ctx); err != nil {
+			return fmt.Errorf("starting kubernetes watcher: %w", err)
+		}
 	}
 
 	if fileWatcher != nil {
@@ -267,7 +330,7 @@ func run() error {
 	triggerReconcile()
 
 	// Start periodic reconciliation timer as a safety net
-	// This catches any missed Docker events and ensures eventual consistency
+	// This catches any missed events and ensures eventual consistency
 	if cfg.ReconcileInterval() > 0 {
 		go func() {
 			ticker := time.NewTicker(cfg.ReconcileInterval())
@@ -290,6 +353,7 @@ func run() error {
 	}
 
 	logger.Info("dnsweaver initialized, watching for changes",
+		slog.String("platform", cfg.Platform()),
 		slog.Int("sources", sourceRegistry.Count()),
 		slog.Int("providers", providerRegistry.Count()),
 		slog.Int("health_port", cfg.HealthPort()),
@@ -307,7 +371,12 @@ func run() error {
 	logger.Info("shutting down...")
 	cancel()
 
-	dockerWatcher.Stop()
+	if dockerWatcher != nil {
+		dockerWatcher.Stop()
+	}
+	if k8sWatcher != nil {
+		k8sWatcher.Stop()
+	}
 	if fileWatcher != nil {
 		fileWatcher.Stop()
 	}
@@ -382,10 +451,33 @@ func registerSources(registry *source.Registry, cfg *config.Config, logger *slog
 				slog.String("name", name),
 				slog.Bool("file_discovery", src.SupportsDiscovery()),
 			)
+		case "kubernetes":
+			src := k8ssource.New(k8ssource.WithLogger(logger))
+			if err := registry.Register(src); err != nil {
+				return fmt.Errorf("registering kubernetes source: %w", err)
+			}
+			logger.Info("registered source",
+				slog.String("name", name),
+			)
 		default:
 			logger.Warn("unknown source, skipping", slog.String("source", name))
 		}
 	}
+
+	// Auto-register kubernetes source when K8s platform is enabled.
+	// This source is always needed for K8s workloads (reads pre-extracted
+	// hostnames from resource converters). It doesn't need to be explicitly
+	// listed in DNSWEAVER_SOURCES — it's platform-implied.
+	if cfg.UseKubernetes() {
+		if registry.Get("kubernetes") == nil {
+			src := k8ssource.New(k8ssource.WithLogger(logger))
+			if err := registry.Register(src); err != nil {
+				return fmt.Errorf("registering kubernetes source: %w", err)
+			}
+			logger.Info("auto-registered kubernetes source for K8s platform")
+		}
+	}
+
 	return nil
 }
 
@@ -439,4 +531,25 @@ func initializeProviders(manager *provider.Manager, cfg *config.Config) error {
 		}
 	}
 	return nil
+}
+
+// buildK8sConfig converts application config into Kubernetes watcher config.
+func buildK8sConfig(cfg *config.Config) k8s.Config {
+	k8sCfg := k8s.DefaultConfig()
+	k8sCfg.Kubeconfig = cfg.K8sKubeconfig()
+	k8sCfg.WatchIngress = cfg.K8sWatchIngress()
+	k8sCfg.WatchIngressRoute = cfg.K8sWatchIngressRoute()
+	k8sCfg.WatchHTTPRoute = cfg.K8sWatchHTTPRoute()
+	k8sCfg.WatchServices = cfg.K8sWatchServices()
+	k8sCfg.LabelSelector = cfg.K8sLabelSelector()
+	k8sCfg.AnnotationFilter = cfg.K8sAnnotationFilter()
+
+	if ns := cfg.K8sNamespaces(); ns != "" {
+		k8sCfg.Namespaces = strings.Split(ns, ",")
+		for i := range k8sCfg.Namespaces {
+			k8sCfg.Namespaces[i] = strings.TrimSpace(k8sCfg.Namespaces[i])
+		}
+	}
+
+	return k8sCfg
 }

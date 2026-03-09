@@ -5,6 +5,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
 )
 
 // mockDiscoverableSource implements Source with discovery support.
@@ -19,8 +21,12 @@ func (m *mockDiscoverableSource) Name() string {
 	return m.name
 }
 
-func (m *mockDiscoverableSource) Extract(_ context.Context, _ map[string]string) ([]Hostname, error) {
+func (m *mockDiscoverableSource) Extract(_ context.Context, _ workload.Workload) ([]Hostname, error) {
 	return m.hostnames, nil
+}
+
+func (m *mockDiscoverableSource) SupportedPlatforms() []workload.Platform {
+	return nil // all platforms
 }
 
 func (m *mockDiscoverableSource) SupportsDiscovery() bool {

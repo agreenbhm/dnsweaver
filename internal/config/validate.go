@@ -25,6 +25,16 @@ func (e *ValidationError) Error() string {
 func validateConfig(cfg *Config) []string {
 	var errs []string
 
+	// Validate platform value
+	switch cfg.Global.Platform {
+	case "docker", "kubernetes", "both":
+		// Valid
+	case "":
+		// Will use default
+	default:
+		errs = append(errs, fmt.Sprintf("invalid platform %q (must be docker, kubernetes, or both)", cfg.Global.Platform))
+	}
+
 	// Validate provider names are unique
 	seen := make(map[string]bool)
 	for _, inst := range cfg.ProviderInstances {

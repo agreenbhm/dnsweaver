@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/source"
+	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
 )
 
 func TestNew(t *testing.T) {
@@ -49,7 +50,8 @@ func TestTraefik_Extract_SingleHost(t *testing.T) {
 		"traefik.http.routers.myapp.rule": "Host(`app.example.com`)",
 	}
 
-	hostnames, err := src.Extract(ctx, labels)
+	w := workload.Workload{Labels: labels, Platform: workload.PlatformDocker, Kind: workload.KindContainer}
+	hostnames, err := src.Extract(ctx, w)
 	if err != nil {
 		t.Fatalf("Extract failed: %v", err)
 	}
@@ -79,7 +81,8 @@ func TestTraefik_Extract_MultipleHostnames(t *testing.T) {
 		"traefik.http.routers.api.rule":      "Host(`api.example.com`)",
 	}
 
-	hostnames, err := src.Extract(ctx, labels)
+	w := workload.Workload{Labels: labels, Platform: workload.PlatformDocker, Kind: workload.KindContainer}
+	hostnames, err := src.Extract(ctx, w)
 	if err != nil {
 		t.Fatalf("Extract failed: %v", err)
 	}
@@ -120,7 +123,8 @@ func TestTraefik_Extract_EmptyLabels(t *testing.T) {
 	src := New(WithLogger(testLogger()))
 	ctx := context.Background()
 
-	hostnames, err := src.Extract(ctx, map[string]string{})
+	w := workload.Workload{Labels: map[string]string{}, Platform: workload.PlatformDocker}
+	hostnames, err := src.Extract(ctx, w)
 	if err != nil {
 		t.Fatalf("Extract failed: %v", err)
 	}
@@ -134,7 +138,8 @@ func TestTraefik_Extract_NilLabels(t *testing.T) {
 	src := New(WithLogger(testLogger()))
 	ctx := context.Background()
 
-	hostnames, err := src.Extract(ctx, nil)
+	w := workload.Workload{Platform: workload.PlatformDocker}
+	hostnames, err := src.Extract(ctx, w)
 	if err != nil {
 		t.Fatalf("Extract failed: %v", err)
 	}
@@ -153,7 +158,8 @@ func TestTraefik_Extract_NoTraefikLabels(t *testing.T) {
 		"maintainer":                 "admin@example.com",
 	}
 
-	hostnames, err := src.Extract(ctx, labels)
+	w := workload.Workload{Labels: labels, Platform: workload.PlatformDocker}
+	hostnames, err := src.Extract(ctx, w)
 	if err != nil {
 		t.Fatalf("Extract failed: %v", err)
 	}
@@ -182,7 +188,8 @@ func TestTraefik_RegistryIntegration(t *testing.T) {
 		"traefik.http.routers.myapp.rule": "Host(`app.example.com`)",
 	}
 
-	hostnames := registry.ExtractAll(context.Background(), labels)
+	w := workload.Workload{Labels: labels, Platform: workload.PlatformDocker, Kind: workload.KindContainer}
+	hostnames := registry.ExtractAll(context.Background(), w)
 
 	if len(hostnames) != 1 {
 		t.Fatalf("expected 1 hostname, got %d", len(hostnames))

@@ -505,3 +505,189 @@ func TestParser_NamedRecord_MixedEnabled(t *testing.T) {
 		t.Errorf("hostname = %q, expected enabled.example.com", extractions[0].Hostname)
 	}
 }
+
+func TestParser_NamedRecord_Proxied(t *testing.T) {
+	parser := NewParser(WithParserLogger(testLogger()))
+
+	tests := []struct {
+		name     string
+		value    string
+		wantMeta map[string]string
+	}{
+		{"true", "true", map[string]string{"proxied": "true"}},
+		{"false", "false", map[string]string{"proxied": "false"}},
+		{"TRUE", "TRUE", map[string]string{"proxied": "true"}},
+		{"FALSE", "FALSE", map[string]string{"proxied": "false"}},
+		{"trimmed", "  true  ", map[string]string{"proxied": "true"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			labels := map[string]string{
+				"dnsweaver.records.myapp.hostname": "app.example.com",
+				"dnsweaver.records.myapp.proxied":  tt.value,
+			}
+
+			extractions := parser.ExtractHostnames(labels)
+			if len(extractions) != 1 {
+				t.Fatalf("expected 1 extraction, got %d", len(extractions))
+			}
+
+			e := extractions[0]
+			if e.Metadata == nil {
+				t.Fatal("Metadata is nil, want non-nil")
+			}
+			if e.Metadata["proxied"] != tt.wantMeta["proxied"] {
+				t.Errorf("Metadata[\"proxied\"] = %q, want %q", e.Metadata["proxied"], tt.wantMeta["proxied"])
+			}
+			if !e.HasHints() {
+				t.Error("HasHints() = false, want true (metadata present)")
+			}
+		})
+	}
+}
+
+func TestParser_NamedRecord_ProxiedInvalid(t *testing.T) {
+	parser := NewParser(WithParserLogger(testLogger()))
+
+	labels := map[string]string{
+		"dnsweaver.records.myapp.hostname": "app.example.com",
+		"dnsweaver.records.myapp.proxied":  "maybe",
+	}
+
+	extractions := parser.ExtractHostnames(labels)
+	if len(extractions) != 1 {
+		t.Fatalf("expected 1 extraction, got %d", len(extractions))
+	}
+
+	if extractions[0].Metadata != nil {
+		t.Errorf("Metadata = %v, want nil for invalid proxied", extractions[0].Metadata)
+	}
+}
+
+func TestParser_NamedRecord_MetaLabels(t *testing.T) {
+	parser := NewParser(WithParserLogger(testLogger()))
+
+	labels := map[string]string{
+		"dnsweaver.records.myapp.hostname":     "app.example.com",
+		"dnsweaver.records.myapp.meta.custom":  "value",
+		"dnsweaver.records.myapp.meta.comment": "Production web server",
+	}
+
+	extractions := parser.ExtractHostnames(labels)
+	if len(extractions) != 1 {
+		t.Fatalf("expected 1 extraction, got %d", len(extractions))
+	}
+
+	e := extractions[0]
+	if e.Metadata == nil {
+		t.Fatal("Metadata is nil")
+	}
+	if e.Metadata["custom"] != "value" {
+		t.Errorf("Metadata[\"custom\"] = %q, want %q", e.Metadata["custom"], "value")
+	}
+	if e.Metadata["comment"] != "Production web server" {
+		t.Errorf("Metadata[\"comment\"] = %q, want %q", e.Metadata["comment"], "Production web server")
+	}
+}
+
+func TestParser_NamedRecord_ProxiedPrecedenceOverMeta(t *testing.T) {
+	parser := NewParser(WithParserLogger(testLogger()))
+
+	labels := map[string]string{
+		"dnsweaver.records.myapp.hostname":       "app.example.com",
+		"dnsweaver.records.myapp.proxied":        "false",
+		"dnsweaver.records.myapp.meta.proxied":   "true",
+		"dnsweaver.records.myapp.meta.other-key": "other-value",
+	}
+
+	extractions := parser.ExtractHostnames(labels)
+	if len(extractions) != 1 {
+		t.Fatalf("expected 1 extraction, got %d", len(extractions))
+	}
+
+	e := extractions[0]
+	if e.Metadata == nil {
+		t.Fatal("Metadata is nil")
+	}
+	// Direct proxied field should win over meta.proxied
+	if e.Metadata["proxied"] != "false" {
+		t.Errorf("Metadata[\"proxied\"] = %q, want %q (direct field wins over meta.*)", e.Metadata["proxied"], "false")
+	}
+	// Other meta keys should still be present
+	if e.Metadata["other-key"] != "other-value" {
+		t.Errorf("Metadata[\"other-key\"] = %q, want %q", e.Metadata["other-key"], "other-value")
+	}
+}
+
+func TestParser_SimpleHostname_Proxied(t *testing.T) {
+	parser := NewParser(WithParserLogger(testLogger()))
+
+	tests := []struct {
+		name     string
+		value    string
+		wantMeta map[string]string
+	}{
+		{"false", "false", map[string]string{"proxied": "false"}},
+		{"true", "true", map[string]string{"proxied": "true"}},
+		{"FALSE_trimmed", "  FALSE  ", map[string]string{"proxied": "false"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			labels := map[string]string{
+				"dnsweaver.hostname": "app.example.com",
+				"dnsweaver.proxied":  tt.value,
+			}
+
+			extractions := parser.ExtractHostnames(labels)
+			if len(extractions) != 1 {
+				t.Fatalf("expected 1 extraction, got %d", len(extractions))
+			}
+
+			e := extractions[0]
+			if e.Metadata == nil {
+				t.Fatal("Metadata is nil, want non-nil")
+			}
+			if e.Metadata["proxied"] != tt.wantMeta["proxied"] {
+				t.Errorf("Metadata[\"proxied\"] = %q, want %q", e.Metadata["proxied"], tt.wantMeta["proxied"])
+			}
+		})
+	}
+}
+
+func TestParser_SimpleHostname_ProxiedInvalid(t *testing.T) {
+	parser := NewParser(WithParserLogger(testLogger()))
+
+	labels := map[string]string{
+		"dnsweaver.hostname": "app.example.com",
+		"dnsweaver.proxied":  "yes",
+	}
+
+	extractions := parser.ExtractHostnames(labels)
+	if len(extractions) != 1 {
+		t.Fatalf("expected 1 extraction, got %d", len(extractions))
+	}
+
+	if extractions[0].Metadata != nil {
+		t.Errorf("Metadata = %v, want nil for invalid proxied", extractions[0].Metadata)
+	}
+}
+
+func TestParser_NamedRecord_NoMetadata(t *testing.T) {
+	parser := NewParser(WithParserLogger(testLogger()))
+
+	labels := map[string]string{
+		"dnsweaver.records.myapp.hostname": "app.example.com",
+		"dnsweaver.records.myapp.type":     "A",
+	}
+
+	extractions := parser.ExtractHostnames(labels)
+	if len(extractions) != 1 {
+		t.Fatalf("expected 1 extraction, got %d", len(extractions))
+	}
+
+	if extractions[0].Metadata != nil {
+		t.Errorf("Metadata = %v, want nil when no metadata labels", extractions[0].Metadata)
+	}
+}

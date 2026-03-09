@@ -3,6 +3,8 @@ package dnsweaver
 import (
 	"context"
 	"testing"
+
+	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
 )
 
 func TestDNSWeaver_Name(t *testing.T) {
@@ -37,7 +39,10 @@ func TestDNSWeaver_Discover(t *testing.T) {
 func TestDNSWeaver_Extract_Empty(t *testing.T) {
 	d := New(WithLogger(testLogger()))
 
-	hostnames, err := d.Extract(context.Background(), nil)
+	hostnames, err := d.Extract(context.Background(), workload.Workload{
+		Platform: workload.PlatformDocker,
+		Kind:     workload.KindContainer,
+	})
 
 	if err != nil {
 		t.Errorf("Extract(nil) error = %v", err)
@@ -54,7 +59,11 @@ func TestDNSWeaver_Extract_SimpleHostname(t *testing.T) {
 		"dnsweaver.hostname": "app.example.com",
 	}
 
-	hostnames, err := d.Extract(context.Background(), labels)
+	hostnames, err := d.Extract(context.Background(), workload.Workload{
+		Labels:   labels,
+		Platform: workload.PlatformDocker,
+		Kind:     workload.KindContainer,
+	})
 
 	if err != nil {
 		t.Fatalf("Extract() error = %v", err)
@@ -89,7 +98,11 @@ func TestDNSWeaver_Extract_NamedRecordWithHints(t *testing.T) {
 		"dnsweaver.records.myapp.ttl":      "600",
 	}
 
-	hostnames, err := d.Extract(context.Background(), labels)
+	hostnames, err := d.Extract(context.Background(), workload.Workload{
+		Labels:   labels,
+		Platform: workload.PlatformDocker,
+		Kind:     workload.KindContainer,
+	})
 
 	if err != nil {
 		t.Fatalf("Extract() error = %v", err)
@@ -138,7 +151,11 @@ func TestDNSWeaver_Extract_SRVRecord(t *testing.T) {
 		"dnsweaver.records.mc.weight":   "5",
 	}
 
-	hostnames, err := d.Extract(context.Background(), labels)
+	hostnames, err := d.Extract(context.Background(), workload.Workload{
+		Labels:   labels,
+		Platform: workload.PlatformDocker,
+		Kind:     workload.KindContainer,
+	})
 
 	if err != nil {
 		t.Fatalf("Extract() error = %v", err)
@@ -181,7 +198,11 @@ func TestDNSWeaver_Extract_MixedWithNonDnsweaverLabels(t *testing.T) {
 		"dnsweaver.hostname": "dns.example.com",
 	}
 
-	hostnames, err := d.Extract(context.Background(), labels)
+	hostnames, err := d.Extract(context.Background(), workload.Workload{
+		Labels:   labels,
+		Platform: workload.PlatformDocker,
+		Kind:     workload.KindContainer,
+	})
 
 	if err != nil {
 		t.Fatalf("Extract() error = %v", err)
@@ -208,7 +229,11 @@ func TestDNSWeaver_Extract_MultipleRecords(t *testing.T) {
 		"dnsweaver.records.public.provider": "cloudflare",
 	}
 
-	hostnames, err := d.Extract(context.Background(), labels)
+	hostnames, err := d.Extract(context.Background(), workload.Workload{
+		Labels:   labels,
+		Platform: workload.PlatformDocker,
+		Kind:     workload.KindContainer,
+	})
 
 	if err != nil {
 		t.Fatalf("Extract() error = %v", err)
@@ -222,5 +247,257 @@ func TestDNSWeaver_Extract_MultipleRecords(t *testing.T) {
 		if h.Source != "dnsweaver" {
 			t.Errorf("Source = %q, want dnsweaver", h.Source)
 		}
+	}
+}
+
+func TestDNSWeaver_Extract_MetadataFlowsToRecordHints(t *testing.T) {
+	d := New(WithLogger(testLogger()))
+
+	labels := map[string]string{
+		"dnsweaver.records.myapp.hostname":    "app.example.com",
+		"dnsweaver.records.myapp.proxied":     "false",
+		"dnsweaver.records.myapp.meta.custom": "value",
+	}
+
+	hostnames, err := d.Extract(context.Background(), workload.Workload{
+		Labels:   labels,
+		Platform: workload.PlatformDocker,
+		Kind:     workload.KindContainer,
+	})
+	if err != nil {
+		t.Fatalf("Extract() error = %v", err)
+	}
+	if len(hostnames) != 1 {
+		t.Fatalf("Extract() returned %d hostnames, want 1", len(hostnames))
+	}
+
+	h := hostnames[0]
+	if h.RecordHints == nil {
+		t.Fatal("RecordHints is nil, want non-nil (metadata present)")
+	}
+	if h.RecordHints.Metadata == nil {
+		t.Fatal("RecordHints.Metadata is nil, want non-nil")
+	}
+	if h.RecordHints.Metadata["proxied"] != "false" {
+		t.Errorf("Metadata[\"proxied\"] = %q, want %q", h.RecordHints.Metadata["proxied"], "false")
+	}
+	if h.RecordHints.Metadata["custom"] != "value" {
+		t.Errorf("Metadata[\"custom\"] = %q, want %q", h.RecordHints.Metadata["custom"], "value")
+	}
+}
+
+func TestDNSWeaver_Extract_SimpleHostnameProxied(t *testing.T) {
+	d := New(WithLogger(testLogger()))
+
+	labels := map[string]string{
+		"dnsweaver.hostname": "app.example.com",
+		"dnsweaver.proxied":  "false",
+	}
+
+	hostnames, err := d.Extract(context.Background(), workload.Workload{
+		Labels:   labels,
+		Platform: workload.PlatformDocker,
+		Kind:     workload.KindContainer,
+	})
+	if err != nil {
+		t.Fatalf("Extract() error = %v", err)
+	}
+	if len(hostnames) != 1 {
+		t.Fatalf("Extract() returned %d hostnames, want 1", len(hostnames))
+	}
+
+	h := hostnames[0]
+	if h.RecordHints == nil {
+		t.Fatal("RecordHints is nil, want non-nil (proxied metadata)")
+	}
+	if h.RecordHints.Metadata == nil {
+		t.Fatal("RecordHints.Metadata is nil")
+	}
+	if h.RecordHints.Metadata["proxied"] != "false" {
+		t.Errorf("Metadata[\"proxied\"] = %q, want %q", h.RecordHints.Metadata["proxied"], "false")
+	}
+}
+
+// --- Kubernetes annotation tests ---
+
+func TestDNSWeaver_Extract_K8sAnnotation_SimpleHostname(t *testing.T) {
+	d := New(WithLogger(testLogger()))
+
+	w := workload.Workload{
+		ID:   "uid-k8s",
+		Name: "default/my-ingress",
+		Annotations: map[string]string{
+			"dnsweaver.dev/hostname": "app.example.com",
+		},
+		Platform: workload.PlatformKubernetes,
+		Kind:     workload.KindIngress,
+	}
+
+	hostnames, err := d.Extract(context.Background(), w)
+	if err != nil {
+		t.Fatalf("Extract() error = %v", err)
+	}
+	if len(hostnames) != 1 {
+		t.Fatalf("Extract() returned %d hostnames, want 1", len(hostnames))
+	}
+	if hostnames[0].Name != "app.example.com" {
+		t.Errorf("Hostname = %q, want %q", hostnames[0].Name, "app.example.com")
+	}
+	if hostnames[0].Source != "dnsweaver" {
+		t.Errorf("Source = %q, want %q", hostnames[0].Source, "dnsweaver")
+	}
+}
+
+func TestDNSWeaver_Extract_K8sAnnotation_NamedRecords(t *testing.T) {
+	d := New(WithLogger(testLogger()))
+
+	w := workload.Workload{
+		ID:   "uid-k8s-named",
+		Name: "default/my-service",
+		Annotations: map[string]string{
+			"dnsweaver.dev/records.myapp.hostname": "app.example.com",
+			"dnsweaver.dev/records.myapp.type":     "A",
+			"dnsweaver.dev/records.myapp.target":   "10.30.0.100",
+			"dnsweaver.dev/records.myapp.ttl":      "300",
+			"dnsweaver.dev/records.myapp.provider": "internal-dns",
+		},
+		Platform: workload.PlatformKubernetes,
+		Kind:     workload.KindK8sService,
+	}
+
+	hostnames, err := d.Extract(context.Background(), w)
+	if err != nil {
+		t.Fatalf("Extract() error = %v", err)
+	}
+	if len(hostnames) != 1 {
+		t.Fatalf("Extract() returned %d hostnames, want 1", len(hostnames))
+	}
+
+	h := hostnames[0]
+	if h.Name != "app.example.com" {
+		t.Errorf("Name = %q, want %q", h.Name, "app.example.com")
+	}
+	if h.Router != "myapp" {
+		t.Errorf("Router = %q, want %q", h.Router, "myapp")
+	}
+	if h.RecordHints == nil {
+		t.Fatal("RecordHints is nil")
+	}
+	if h.RecordHints.Type != "A" {
+		t.Errorf("Type = %q, want %q", h.RecordHints.Type, "A")
+	}
+	if h.RecordHints.Target != "10.30.0.100" {
+		t.Errorf("Target = %q, want %q", h.RecordHints.Target, "10.30.0.100")
+	}
+	if h.RecordHints.TTL != 300 {
+		t.Errorf("TTL = %d, want %d", h.RecordHints.TTL, 300)
+	}
+	if h.RecordHints.Provider != "internal-dns" {
+		t.Errorf("Provider = %q, want %q", h.RecordHints.Provider, "internal-dns")
+	}
+}
+
+func TestDNSWeaver_Extract_K8sAnnotation_DisabledSkipsAll(t *testing.T) {
+	d := New(WithLogger(testLogger()))
+
+	w := workload.Workload{
+		ID:   "uid-disabled",
+		Name: "default/disabled-service",
+		Annotations: map[string]string{
+			"dnsweaver.dev/enabled":  "false",
+			"dnsweaver.dev/hostname": "should-not-appear.example.com",
+		},
+		Platform: workload.PlatformKubernetes,
+		Kind:     workload.KindK8sService,
+	}
+
+	hostnames, err := d.Extract(context.Background(), w)
+	if err != nil {
+		t.Fatalf("Extract() error = %v", err)
+	}
+	if len(hostnames) != 0 {
+		t.Errorf("Extract() returned %d hostnames, want 0 (disabled)", len(hostnames))
+	}
+}
+
+func TestDNSWeaver_Extract_K8sAnnotation_LabelsOverrideAnnotations(t *testing.T) {
+	d := New(WithLogger(testLogger()))
+
+	// If both labels and annotations have dnsweaver entries, labels win.
+	w := workload.Workload{
+		ID:   "uid-both",
+		Name: "default/both",
+		Labels: map[string]string{
+			"dnsweaver.hostname": "from-labels.example.com",
+		},
+		Annotations: map[string]string{
+			"dnsweaver.dev/hostname": "from-annotations.example.com",
+		},
+		Platform: workload.PlatformKubernetes,
+		Kind:     workload.KindIngress,
+	}
+
+	hostnames, err := d.Extract(context.Background(), w)
+	if err != nil {
+		t.Fatalf("Extract() error = %v", err)
+	}
+	if len(hostnames) != 1 {
+		t.Fatalf("Extract() returned %d hostnames, want 1", len(hostnames))
+	}
+
+	// Label value should win.
+	if hostnames[0].Name != "from-labels.example.com" {
+		t.Errorf("Hostname = %q, want %q (labels should override annotations)",
+			hostnames[0].Name, "from-labels.example.com")
+	}
+}
+
+func TestDNSWeaver_Extract_K8sAnnotation_NonDnsweaverAnnotationsIgnored(t *testing.T) {
+	d := New(WithLogger(testLogger()))
+
+	w := workload.Workload{
+		ID:   "uid-other",
+		Name: "default/other-annotations",
+		Annotations: map[string]string{
+			"kubernetes.io/ingress.class":               "traefik",
+			"external-dns.alpha.kubernetes.io/hostname": "external.example.com",
+			"cert-manager.io/cluster-issuer":            "letsencrypt",
+			"traefik.ingress.kubernetes.io/router.tls":  "true",
+		},
+		Platform: workload.PlatformKubernetes,
+		Kind:     workload.KindIngress,
+	}
+
+	hostnames, err := d.Extract(context.Background(), w)
+	if err != nil {
+		t.Fatalf("Extract() error = %v", err)
+	}
+	if len(hostnames) != 0 {
+		t.Errorf("Extract() returned %d hostnames, want 0 (no dnsweaver annotations)", len(hostnames))
+	}
+}
+
+func TestDNSWeaver_Extract_DockerUnchanged(t *testing.T) {
+	// Verify existing Docker label behavior is unaffected.
+	d := New(WithLogger(testLogger()))
+
+	w := workload.Workload{
+		ID: "container-123",
+		Labels: map[string]string{
+			"dnsweaver.hostname": "docker-app.example.com",
+		},
+		Platform: workload.PlatformDocker,
+		Kind:     workload.KindContainer,
+	}
+
+	hostnames, err := d.Extract(context.Background(), w)
+	if err != nil {
+		t.Fatalf("Extract() error = %v", err)
+	}
+	if len(hostnames) != 1 {
+		t.Fatalf("Extract() returned %d hostnames, want 1", len(hostnames))
+	}
+	if hostnames[0].Name != "docker-app.example.com" {
+		t.Errorf("Hostname = %q, want %q", hostnames[0].Name, "docker-app.example.com")
 	}
 }

@@ -1,12 +1,12 @@
 ---
 title: Deployment
-description: Deploy dnsweaver in Docker, Docker Compose, and Docker Swarm environments
+description: Deploy dnsweaver in Docker, Kubernetes, or hybrid environments
 icon: material/server
 ---
 
 # Deployment
 
-dnsweaver is designed for containerized deployments. This section provides production-ready configurations for various environments.
+dnsweaver runs as a lightweight container in Docker or Kubernetes. This section provides production-ready configurations for all supported environments.
 
 ## Deployment Options
 
@@ -24,9 +24,17 @@ dnsweaver is designed for containerized deployments. This section provides produ
 
     ---
 
-    Production deployment for multi-node clusters with high availability considerations.
+    Production deployment for multi-node Docker clusters with high availability.
 
     [:octicons-arrow-right-24: Docker Swarm](swarm.md)
+
+-   :material-kubernetes:{ .lg .middle } **Kubernetes**
+
+    ---
+
+    Deploy with Helm or Kustomize. Watches Ingress, IngressRoute, HTTPRoute, and Service resources.
+
+    [:octicons-arrow-right-24: Kubernetes](kubernetes.md)
 
 -   :material-transit-connection-variant:{ .lg .middle } **Split-Horizon DNS**
 
@@ -40,18 +48,19 @@ dnsweaver is designed for containerized deployments. This section provides produ
 
 ## Quick Comparison
 
-| Feature | Docker Compose | Docker Swarm |
-| :------ | :------------- | :----------- |
-| Complexity | Simple | Moderate |
-| High availability | :material-close: | :material-check: |
-| Secrets management | File-based | Native secrets |
-| Best for | Development, single-host | Production, multi-node |
+| Feature | Docker Compose | Docker Swarm | Kubernetes |
+| :------ | :------------- | :----------- | :--------- |
+| Complexity | Simple | Moderate | Moderate |
+| High availability | :material-close: | :material-check: | :material-check: |
+| Secrets management | File-based | Native secrets | K8s Secrets |
+| RBAC | Docker socket | Docker socket | ClusterRole |
+| Best for | Development | Multi-node Docker | K8s clusters |
 
 ## Common Requirements
 
 Regardless of deployment method, dnsweaver needs:
 
-1. **Docker socket access** — To watch container events
+1. **Platform access** — Docker socket (Docker) or RBAC ServiceAccount (Kubernetes)
 2. **Network connectivity** — To reach DNS provider APIs
 3. **Credentials** — API tokens for your DNS providers
 

@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"os"
 	"testing"
+
+	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
 )
 
 // mockSource implements Source for testing.
@@ -16,11 +18,12 @@ type mockSource struct {
 	discoverHostnames []Hostname
 	discoverErr       error
 	supportsDiscovery bool
+	platforms         []workload.Platform
 }
 
 func (m *mockSource) Name() string { return m.name }
 
-func (m *mockSource) Extract(ctx context.Context, labels map[string]string) ([]Hostname, error) {
+func (m *mockSource) Extract(ctx context.Context, w workload.Workload) ([]Hostname, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -36,6 +39,10 @@ func (m *mockSource) Discover(ctx context.Context) ([]Hostname, error) {
 
 func (m *mockSource) SupportsDiscovery() bool {
 	return m.supportsDiscovery
+}
+
+func (m *mockSource) SupportedPlatforms() []workload.Platform {
+	return m.platforms
 }
 
 func testLogger() *slog.Logger {
@@ -140,7 +147,8 @@ func TestRegistry_ExtractAll(t *testing.T) {
 	_ = r.Register(src2)
 
 	labels := map[string]string{"some": "labels"}
-	hostnames := r.ExtractAll(context.Background(), labels)
+	w := workload.Workload{Labels: labels, Platform: workload.PlatformDocker}
+	hostnames := r.ExtractAll(context.Background(), w)
 
 	if len(hostnames) != 3 {
 		t.Fatalf("ExtractAll returned %d hostnames, want 3", len(hostnames))
@@ -180,7 +188,8 @@ func TestRegistry_ExtractAll_WithErrors(t *testing.T) {
 	_ = r.Register(src3)
 
 	// Should continue extraction despite error in middle source
-	hostnames := r.ExtractAll(context.Background(), nil)
+	w := workload.Workload{Platform: workload.PlatformDocker}
+	hostnames := r.ExtractAll(context.Background(), w)
 
 	if len(hostnames) != 2 {
 		t.Fatalf("ExtractAll returned %d hostnames, want 2", len(hostnames))
@@ -198,7 +207,8 @@ func TestRegistry_ExtractAll_Empty(t *testing.T) {
 	r := NewRegistry(testLogger())
 
 	// No sources registered
-	hostnames := r.ExtractAll(context.Background(), nil)
+	w := workload.Workload{Platform: workload.PlatformDocker}
+	hostnames := r.ExtractAll(context.Background(), w)
 	if len(hostnames) != 0 {
 		t.Errorf("ExtractAll returned %d hostnames, want 0", len(hostnames))
 	}
@@ -216,7 +226,8 @@ func TestRegistry_ExtractFrom(t *testing.T) {
 
 	_ = r.Register(src)
 
-	hostnames, err := r.ExtractFrom(context.Background(), "specific", nil)
+	w := workload.Workload{Platform: workload.PlatformDocker}
+	hostnames, err := r.ExtractFrom(context.Background(), "specific", w)
 	if err != nil {
 		t.Fatalf("ExtractFrom failed: %v", err)
 	}
@@ -229,7 +240,8 @@ func TestRegistry_ExtractFrom(t *testing.T) {
 func TestRegistry_ExtractFrom_NotFound(t *testing.T) {
 	r := NewRegistry(testLogger())
 
-	_, err := r.ExtractFrom(context.Background(), "nonexistent", nil)
+	w := workload.Workload{Platform: workload.PlatformDocker}
+	_, err := r.ExtractFrom(context.Background(), "nonexistent", w)
 	if err == nil {
 		t.Error("expected error for missing source")
 	}

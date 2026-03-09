@@ -271,6 +271,43 @@ func mergeGlobalConfig(base *GlobalConfig) (*GlobalConfig, []string) {
 		}
 	}
 
+	// Override platform if set in env
+	if v := getEnv("DNSWEAVER_PLATFORM"); v != "" {
+		cfg.Platform = strings.ToLower(v)
+		switch cfg.Platform {
+		case "docker", "kubernetes", "both":
+			// Valid
+		default:
+			errs = append(errs, "DNSWEAVER_PLATFORM: invalid value (must be docker, kubernetes, or both)")
+		}
+	}
+
+	// Override Kubernetes settings if set in env
+	if v := getEnv("DNSWEAVER_K8S_KUBECONFIG"); v != "" {
+		cfg.K8sKubeconfig = v
+	}
+	if v := getEnv("DNSWEAVER_K8S_NAMESPACES"); v != "" {
+		cfg.K8sNamespaces = v
+	}
+	if v := getEnv("DNSWEAVER_K8S_LABEL_SELECTOR"); v != "" {
+		cfg.K8sLabelSelector = v
+	}
+	if v := getEnv("DNSWEAVER_K8S_ANNOTATION_FILTER"); v != "" {
+		cfg.K8sAnnotationFilter = v
+	}
+	if v := getEnv("DNSWEAVER_K8S_WATCH_INGRESS"); v != "" {
+		cfg.K8sWatchIngress = parseBool(v, cfg.K8sWatchIngress)
+	}
+	if v := getEnv("DNSWEAVER_K8S_WATCH_INGRESSROUTE"); v != "" {
+		cfg.K8sWatchIngressRoute = parseBool(v, cfg.K8sWatchIngressRoute)
+	}
+	if v := getEnv("DNSWEAVER_K8S_WATCH_HTTPROUTE"); v != "" {
+		cfg.K8sWatchHTTPRoute = parseBool(v, cfg.K8sWatchHTTPRoute)
+	}
+	if v := getEnv("DNSWEAVER_K8S_WATCH_SERVICES"); v != "" {
+		cfg.K8sWatchServices = parseBool(v, cfg.K8sWatchServices)
+	}
+
 	return &cfg, errs
 }
 

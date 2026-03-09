@@ -23,6 +23,7 @@ import (
 	"log/slog"
 
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/source"
+	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
 )
 
 const sourceName = "traefik"
@@ -89,12 +90,12 @@ func (t *Traefik) Name() string {
 //
 // Returns an empty slice if no Traefik labels are found.
 // Never returns an error - malformed rules are logged and skipped.
-func (t *Traefik) Extract(ctx context.Context, labels map[string]string) ([]source.Hostname, error) {
-	if len(labels) == 0 {
+func (t *Traefik) Extract(ctx context.Context, w workload.Workload) ([]source.Hostname, error) {
+	if len(w.Labels) == 0 {
 		return nil, nil
 	}
 
-	extractions := t.parser.ExtractHostnames(labels)
+	extractions := t.parser.ExtractHostnames(w.Labels)
 
 	hostnames := make([]source.Hostname, 0, len(extractions))
 	for _, e := range extractions {
@@ -158,6 +159,12 @@ func (t *Traefik) Discover(ctx context.Context) ([]source.Hostname, error) {
 // SupportsDiscovery returns true if file paths are configured.
 func (t *Traefik) SupportsDiscovery() bool {
 	return t.fileConfig.IsEnabled()
+}
+
+// SupportedPlatforms returns an empty slice, meaning Traefik source works with
+// all platforms. Docker labels and K8s annotations both use the same format.
+func (t *Traefik) SupportedPlatforms() []workload.Platform {
+	return nil
 }
 
 // FileConfig returns the file discovery configuration.

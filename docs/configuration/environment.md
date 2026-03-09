@@ -53,6 +53,43 @@ environment:
 
 The socket proxy only needs read-only access to containers, services, and events.
 
+## Platform Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DNSWEAVER_PLATFORM` | `docker` | Platform mode: `docker`, `kubernetes`, or `both` |
+| `DNSWEAVER_INSTANCE_ID` | *(empty)* | Unique instance identifier for multi-instance coordination |
+
+Set `DNSWEAVER_PLATFORM` to control which workload sources are active:
+
+- **`docker`** — Watch Docker containers/services only (default, backward-compatible)
+- **`kubernetes`** — Watch Kubernetes Ingress/IngressRoute/HTTPRoute/Service resources only
+- **`both`** — Watch both Docker and Kubernetes workloads simultaneously
+
+## Kubernetes Settings
+
+These settings are only relevant when `DNSWEAVER_PLATFORM` is `kubernetes` or `both`.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DNSWEAVER_K8S_KUBECONFIG` | *(empty)* | Path to kubeconfig file. Empty uses in-cluster config |
+| `DNSWEAVER_K8S_NAMESPACES` | *(empty)* | Comma-separated namespace list. Empty watches all namespaces |
+| `DNSWEAVER_K8S_WATCH_INGRESS` | `true` | Watch `networking.k8s.io/v1` Ingress resources |
+| `DNSWEAVER_K8S_WATCH_INGRESSROUTE` | `true` | Watch `traefik.io/v1alpha1` IngressRoute CRDs |
+| `DNSWEAVER_K8S_WATCH_HTTPROUTE` | `true` | Watch `gateway.networking.k8s.io/v1` HTTPRoute CRDs |
+| `DNSWEAVER_K8S_WATCH_SERVICES` | `false` | Watch `v1` Service resources (opt-in, can be noisy) |
+| `DNSWEAVER_K8S_LABEL_SELECTOR` | *(empty)* | Kubernetes label selector to filter watched resources |
+| `DNSWEAVER_K8S_ANNOTATION_FILTER` | *(empty)* | Annotation `key=value` filter for watched resources |
+
+!!! tip "In-Cluster vs External"
+    When running inside Kubernetes (recommended), leave `DNSWEAVER_K8S_KUBECONFIG` empty —
+    dnsweaver automatically uses the pod's service account token. Set it only for out-of-cluster
+    development or testing.
+
+!!! note "RBAC Required"
+    Kubernetes mode requires a `ClusterRole` with read access to the resource types you're watching.
+    See the [Kubernetes deployment guide](../deployment/kubernetes.md) for ready-to-use RBAC manifests.
+
 ## Per-Instance Settings
 
 Replace `{NAME}` with your instance name. For example, instance `internal-dns` uses prefix `INTERNAL_DNS`.
@@ -71,7 +108,7 @@ Replace `{NAME}` with your instance name. For example, instance `internal-dns` u
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DNSWEAVER_SOURCES` | `traefik` | Comma-separated list: `traefik`, `dnsweaver` |
+| `DNSWEAVER_SOURCES` | `traefik` | Comma-separated list: `traefik`, `dnsweaver`, `kubernetes` |
 | `DNSWEAVER_SOURCE_TRAEFIK_FILE_PATHS` | *(none)* | Paths to Traefik config directories/files |
 | `DNSWEAVER_SOURCE_TRAEFIK_FILE_PATTERN` | `*.yml,*.yaml,*.toml` | Glob pattern for config files |
 | `DNSWEAVER_SOURCE_TRAEFIK_POLL_INTERVAL` | `60s` | File re-scan interval |
@@ -83,6 +120,9 @@ See the individual provider documentation for complete settings:
 
 - [Technitium](../providers/technitium.md)
 - [Cloudflare](../providers/cloudflare.md)
+- [RFC 2136](../providers/rfc2136.md)
 - [Pi-hole](../providers/pihole.md)
 - [dnsmasq](../providers/dnsmasq.md)
 - [Webhook](../providers/webhook.md)
+
+For Kubernetes source configuration, see [Kubernetes Source](../sources/kubernetes.md).

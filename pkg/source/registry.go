@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"sync"
+
+	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
 )
 
 // Registry manages source implementations and coordinates hostname extraction.
@@ -80,13 +82,16 @@ func (r *Registry) Count() int {
 
 // ExtractAll queries all registered sources and returns all discovered hostnames.
 //
-// Each source is queried with the provided labels. Results are aggregated
+// Each source is queried with the provided workload. Results are aggregated
 // in source registration order. Duplicate hostnames are NOT removed to
 // preserve source attribution - use Hostnames.Deduplicate() if needed.
 //
+// Sources that declare SupportedPlatforms() are only queried if the workload's
+// platform matches. Sources with empty SupportedPlatforms() are always queried.
+//
 // If a source returns an error, extraction continues with remaining sources.
 // Errors are logged but not returned to allow partial results.
-func (r *Registry) ExtractAll(ctx context.Context, labels map[string]string) Hostnames {
+func (r *Registry) ExtractAll(ctx context.Context, w workload.Workload) Hostnames {
 	r.mu.RLock()
 	sources := make([]Source, len(r.sources))
 	copy(sources, r.sources)
@@ -95,7 +100,12 @@ func (r *Registry) ExtractAll(ctx context.Context, labels map[string]string) Hos
 	var allHostnames Hostnames
 
 	for _, src := range sources {
-		hostnames, err := src.Extract(ctx, labels)
+		// Skip sources that don't support this workload's platform
+		if !sourceSupports(src, w.Platform) {
+			continue
+		}
+
+		hostnames, err := src.Extract(ctx, w)
 		if err != nil {
 			r.logger.Warn("source extraction failed",
 				slog.String("source", src.Name()),
@@ -114,6 +124,21 @@ func (r *Registry) ExtractAll(ctx context.Context, labels map[string]string) Hos
 	}
 
 	return allHostnames
+}
+
+// sourceSupports returns true if the source supports the given platform.
+// Sources with empty SupportedPlatforms() support all platforms.
+func sourceSupports(src Source, platform workload.Platform) bool {
+	platforms := src.SupportedPlatforms()
+	if len(platforms) == 0 {
+		return true // empty means all platforms
+	}
+	for _, p := range platforms {
+		if p == platform {
+			return true
+		}
+	}
+	return false
 }
 
 // DiscoverAll queries all sources that support file-based discovery.
@@ -175,7 +200,7 @@ func (r *Registry) DiscoverableSources() []Source {
 
 // ExtractFrom queries a specific source by name.
 // Returns an error if the source is not found.
-func (r *Registry) ExtractFrom(ctx context.Context, sourceName string, labels map[string]string) (Hostnames, error) {
+func (r *Registry) ExtractFrom(ctx context.Context, sourceName string, w workload.Workload) (Hostnames, error) {
 	r.mu.RLock()
 	src, exists := r.byName[sourceName]
 	r.mu.RUnlock()
@@ -184,7 +209,7 @@ func (r *Registry) ExtractFrom(ctx context.Context, sourceName string, labels ma
 		return nil, ErrSourceNotFound(sourceName)
 	}
 
-	return src.Extract(ctx, labels)
+	return src.Extract(ctx, w)
 }
 
 // DiscoverFrom queries a specific source by name for file-based discovery.

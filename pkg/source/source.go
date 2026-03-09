@@ -1,21 +1,21 @@
-// Package source defines the interface for hostname extraction from container labels
+// Package source defines the interface for hostname extraction from workloads
 // and static configuration files.
 //
-// Sources are responsible for understanding how different reverse proxies
-// (Traefik, Caddy, Nginx, etc.) store hostname information. Each source
-// implementation knows how to parse its specific format from both:
-//   - Docker container/service labels (Extract)
-//   - Static configuration files (Discover)
+// Sources are responsible for understanding how different reverse proxies,
+// Kubernetes resources, and annotation schemes store hostname information.
+// Each source implementation knows how to parse its specific format from:
+//   - Workload labels/annotations (Extract) — Docker labels, K8s annotations
+//   - Static configuration files (Discover) — Traefik YAML, etc.
 //
 // Example usage:
 //
 //	registry := source.NewRegistry(logger)
 //	registry.Register(traefik.New())
 //
-//	// When a container event occurs (labels):
-//	hostnames := registry.ExtractAll(ctx, container.Labels)
+//	// When a workload event occurs:
+//	hostnames := registry.ExtractAll(ctx, myWorkload)
 //	for _, h := range hostnames {
-//	    log.Printf("Discovered from labels: %s from %s", h.Name, h.Source)
+//	    log.Printf("Discovered: %s from %s", h.Name, h.Source)
 //	}
 //
 //	// For static file discovery:
@@ -25,14 +25,18 @@
 //	}
 package source
 
-import "context"
+import (
+	"context"
 
-// Source defines the interface for hostname extraction from container labels
+	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
+)
+
+// Source defines the interface for hostname extraction from workloads
 // and optional file-based discovery.
 //
-// Each source implementation (Traefik, Caddy, etc.) must satisfy this interface.
-// Sources may support one or both discovery methods:
-//   - Extract: Parse hostnames from Docker container/service labels
+// Each source implementation (Traefik, Caddy, K8s Ingress, etc.) must satisfy
+// this interface. Sources may support one or both discovery methods:
+//   - Extract: Parse hostnames from workload labels/annotations/spec
 //   - Discover: Parse hostnames from static configuration files
 //
 // Design principle: Presence implies intent. If FILE_PATHS is configured for a
@@ -47,19 +51,22 @@ type Source interface {
 	// This is used for logging and metrics.
 	Name() string
 
-	// Extract parses container labels and returns discovered hostnames.
+	// Extract parses workload labels/annotations and returns discovered hostnames.
 	//
-	// The labels map contains all labels from a Docker container or Swarm service.
-	// Implementations should only look at labels relevant to their format and
-	// ignore unrecognized labels.
+	// The workload contains labels, annotations, pre-extracted hostnames, and
+	// platform metadata. Implementations should read whatever fields are relevant
+	// to their format and ignore unrecognized data.
+	//
+	// For Docker sources, w.Labels contains container/service labels.
+	// For K8s sources, w.Annotations and w.Hostnames are typically used.
 	//
 	// Returns:
 	//   - Slice of discovered hostnames (may be empty if none found)
-	//   - Error only if labels indicate malformed configuration
+	//   - Error only if data indicates malformed configuration
 	//
 	// Context is provided for future extensibility (e.g., label expansion
 	// that requires external lookups).
-	Extract(ctx context.Context, labels map[string]string) ([]Hostname, error)
+	Extract(ctx context.Context, w workload.Workload) ([]Hostname, error)
 
 	// Discover finds hostnames from configured file paths.
 	//
@@ -84,4 +91,9 @@ type Source interface {
 	// discovery in addition to label extraction. Sources without file paths
 	// configured should return false.
 	SupportsDiscovery() bool
+
+	// SupportedPlatforms returns which platforms this source handles.
+	// An empty slice means the source works with all platforms
+	// (backward-compatible default for existing Docker-only sources).
+	SupportedPlatforms() []workload.Platform
 }

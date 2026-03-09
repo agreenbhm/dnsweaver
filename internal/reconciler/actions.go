@@ -79,6 +79,7 @@ func (r *Reconciler) ensureRecordForProvider(ctx context.Context, hostname *sour
 	target := inst.Target
 	ttl := inst.TTL
 	var srvData *provider.SRVData
+	var metadata map[string]string
 
 	if hints := hostname.RecordHints; hints != nil {
 		if hints.Type != "" {
@@ -97,6 +98,23 @@ func (r *Reconciler) ensureRecordForProvider(ctx context.Context, hostname *sour
 				Weight:   hints.SRV.Weight,
 				Port:     hints.SRV.Port,
 			}
+		}
+		// Pass through metadata from source hints to provider
+		if len(hints.Metadata) > 0 {
+			metadata = hints.Metadata
+		}
+	}
+
+	// If source didn't provide metadata, check for recovered metadata from
+	// ownership TXT records (populated on startup by RecoverOwnership).
+	// This bridges the gap between restart and the source re-asserting metadata.
+	if len(metadata) == 0 {
+		if recovered := r.getRecoveredMetadata(hostname.Name); len(recovered) > 0 {
+			metadata = recovered
+			r.logger.Debug("using recovered metadata from ownership record",
+				slog.String("hostname", hostname.Name),
+				slog.Int("metadata_keys", len(recovered)),
+			)
 		}
 	}
 
@@ -235,14 +253,14 @@ func (r *Reconciler) ensureRecordForProvider(ctx context.Context, hostname *sour
 				slog.String("provider", inst.Name()),
 				slog.String("target", target),
 			)
-			r.ensureOwnershipRecord(ctx, hostname.Name, inst)
+			r.ensureOwnershipRecord(ctx, hostname.Name, inst, metadata)
 		} else if r.config.AdoptExisting {
 			r.logger.Info("adopting existing record",
 				slog.String("hostname", hostname.Name),
 				slog.String("provider", inst.Name()),
 				slog.String("target", target),
 			)
-			r.ensureOwnershipRecord(ctx, hostname.Name, inst)
+			r.ensureOwnershipRecord(ctx, hostname.Name, inst, metadata)
 		} else {
 			r.logger.Info("existing record found, skipping adoption (set ADOPT_EXISTING=true to manage)",
 				slog.String("hostname", hostname.Name),
@@ -295,13 +313,13 @@ func (r *Reconciler) ensureRecordForProvider(ctx context.Context, hostname *sour
 			slog.String("type", string(recordType)),
 			slog.String("target", target),
 		)
-		r.ensureOwnershipRecord(ctx, hostname.Name, inst)
+		r.ensureOwnershipRecord(ctx, hostname.Name, inst, metadata)
 		return action
 	}
 
 	// Step 6: Create the record (no existing records)
 	// Use CreateRecordWithValues to respect RecordHints overrides
-	if err := inst.CreateRecordWithValues(ctx, hostname.Name, recordType, target, ttl, srvData); err != nil {
+	if err := inst.CreateRecordWithValues(ctx, hostname.Name, recordType, target, ttl, srvData, metadata); err != nil {
 		// Handle conflict error (shouldn't happen after our checks, but be safe)
 		if provider.IsConflict(err) {
 			action.Type = ActionSkip
@@ -311,7 +329,7 @@ func (r *Reconciler) ensureRecordForProvider(ctx context.Context, hostname *sour
 				slog.String("hostname", hostname.Name),
 				slog.String("provider", inst.Name()),
 			)
-			r.ensureOwnershipRecord(ctx, hostname.Name, inst)
+			r.ensureOwnershipRecord(ctx, hostname.Name, inst, metadata)
 		} else if provider.IsTypeConflict(err) {
 			action.Type = ActionSkip
 			action.Status = StatusSkipped
@@ -339,19 +357,19 @@ func (r *Reconciler) ensureRecordForProvider(ctx context.Context, hostname *sour
 			slog.String("target", target),
 		)
 		action.Status = StatusSuccess
-		r.ensureOwnershipRecord(ctx, hostname.Name, inst)
+		r.ensureOwnershipRecord(ctx, hostname.Name, inst, metadata)
 	}
 
 	return action
 }
 
 // ensureOwnershipRecord creates the ownership TXT record if tracking is enabled.
-func (r *Reconciler) ensureOwnershipRecord(ctx context.Context, hostname string, inst *provider.ProviderInstance) {
+func (r *Reconciler) ensureOwnershipRecord(ctx context.Context, hostname string, inst *provider.ProviderInstance, metadata map[string]string) {
 	if !r.config.OwnershipTracking {
 		return
 	}
 
-	if err := inst.CreateOwnershipRecord(ctx, hostname); err != nil {
+	if err := inst.CreateOwnershipRecord(ctx, hostname, metadata); err != nil {
 		// Don't warn if ownership record already exists
 		if !provider.IsConflict(err) {
 			r.logger.Warn("failed to create ownership record",

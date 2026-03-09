@@ -3,6 +3,7 @@ package provider
 
 import (
 	"context"
+	"sort"
 	"strings"
 )
 
@@ -27,49 +28,95 @@ const OwnershipValue = "heritage=dnsweaver"
 // ownershipHeritage is the base heritage value used in all ownership records.
 const ownershipHeritage = "heritage=dnsweaver"
 
-// MakeOwnershipValue returns the ownership TXT record value for the given instance ID.
-// If instanceID is empty, returns the legacy format "heritage=dnsweaver".
+// Reserved ownership keys that are not included in metadata.
+const (
+	keyHeritage = "heritage"
+	keyInstance = "instance"
+)
+
+// MakeOwnershipValue returns the ownership TXT record value for the given instance ID and metadata.
+// If instanceID is empty, uses the legacy format "heritage=dnsweaver".
 // If instanceID is set, returns "heritage=dnsweaver,instance=<id>".
-func MakeOwnershipValue(instanceID string) string {
-	if instanceID == "" {
-		return OwnershipValue
+// If metadata is non-empty, appends sorted key=value pairs.
+// Reserved keys ("heritage", "instance") in metadata are silently ignored.
+func MakeOwnershipValue(instanceID string, metadata map[string]string) string {
+	var b strings.Builder
+	b.WriteString(ownershipHeritage)
+
+	if instanceID != "" {
+		b.WriteString("," + keyInstance + "=")
+		b.WriteString(instanceID)
 	}
-	return ownershipHeritage + ",instance=" + instanceID
+
+	if len(metadata) > 0 {
+		// Sort keys for deterministic output
+		keys := make([]string, 0, len(metadata))
+		for k := range metadata {
+			// Skip reserved keys
+			if k == keyHeritage || k == keyInstance {
+				continue
+			}
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
+		for _, k := range keys {
+			b.WriteByte(',')
+			b.WriteString(k)
+			b.WriteByte('=')
+			b.WriteString(metadata[k])
+		}
+	}
+
+	return b.String()
 }
 
 // ParseOwnershipValue parses an ownership TXT record value.
-// Returns whether the record is a dnsweaver ownership record and the instance ID (if present).
+// Returns whether the record is a dnsweaver ownership record, the instance ID (if present),
+// and any additional metadata key-value pairs.
 // Examples:
 //
-//	"heritage=dnsweaver"                   -> (true, "")
-//	"heritage=dnsweaver,instance=pi5-dns"  -> (true, "pi5-dns")
-//	"some other value"                     -> (false, "")
-func ParseOwnershipValue(value string) (isOwned bool, instanceID string) {
+//	"heritage=dnsweaver"                            -> (true, "", nil)
+//	"heritage=dnsweaver,instance=pi5-dns"            -> (true, "pi5-dns", nil)
+//	"heritage=dnsweaver,instance=pi5-dns,proxied=true" -> (true, "pi5-dns", {"proxied": "true"})
+//	"some other value"                               -> (false, "", nil)
+func ParseOwnershipValue(value string) (isOwned bool, instanceID string, metadata map[string]string) {
 	if !strings.HasPrefix(value, ownershipHeritage) {
-		return false, ""
+		return false, "", nil
 	}
 	rest := value[len(ownershipHeritage):]
 	if rest == "" {
-		return true, ""
+		return true, "", nil
 	}
 	if !strings.HasPrefix(rest, ",") {
-		return false, ""
+		return false, "", nil
 	}
 	// Parse comma-separated key=value pairs
 	for _, part := range strings.Split(rest[1:], ",") {
 		kv := strings.SplitN(part, "=", 2)
-		if len(kv) == 2 && kv[0] == "instance" {
-			return true, kv[1]
+		if len(kv) != 2 {
+			continue
+		}
+		switch kv[0] {
+		case keyInstance:
+			instanceID = kv[1]
+		case keyHeritage:
+			// Skip reserved key
+		default:
+			if metadata == nil {
+				metadata = make(map[string]string)
+			}
+			metadata[kv[0]] = kv[1]
 		}
 	}
-	return true, ""
+	return true, instanceID, metadata
 }
 
 // MatchesOwnership checks if a TXT record value matches our instance's ownership.
 // An empty ourInstanceID matches only legacy records (no instance tag).
 // A non-empty ourInstanceID matches only records with that specific instance tag.
 func MatchesOwnership(value, ourInstanceID string) bool {
-	isOwned, recordInstanceID := ParseOwnershipValue(value)
+	isOwned, recordInstanceID, _ := ParseOwnershipValue(value)
 	if !isOwned {
 		return false
 	}
@@ -79,7 +126,7 @@ func MatchesOwnership(value, ourInstanceID string) bool {
 // IsDnsweaverOwned checks if a TXT record value indicates ownership by any dnsweaver instance.
 // This is used for discovery/recovery regardless of which instance created the record.
 func IsDnsweaverOwned(value string) bool {
-	isOwned, _ := ParseOwnershipValue(value)
+	isOwned, _, _ := ParseOwnershipValue(value)
 	return isOwned
 }
 
@@ -99,6 +146,11 @@ type Record struct {
 	TTL        int
 	ProviderID string   // Provider-specific record identifier
 	SRV        *SRVData // SRV-specific data (only set when Type is SRV)
+
+	// Metadata carries provider-specific key-value pairs through the reconciliation pipeline.
+	// Providers read actionable keys (e.g., "proxied" for Cloudflare) during Create/Update.
+	// nil means no metadata (Go zero value, non-breaking addition).
+	Metadata map[string]string
 }
 
 // Capabilities describes a provider's feature support.
@@ -221,11 +273,12 @@ func ExtractHostnameFromOwnership(ownershipName string) string {
 
 // OwnershipRecord creates a TXT record for ownership tracking.
 // If instanceID is empty, uses the legacy format for backward compatibility.
-func OwnershipRecord(hostname string, ttl int, instanceID string) Record {
+// If metadata is non-nil, it is serialized into the TXT value.
+func OwnershipRecord(hostname string, ttl int, instanceID string, metadata map[string]string) Record {
 	return Record{
 		Hostname: OwnershipRecordName(hostname),
 		Type:     RecordTypeTXT,
-		Target:   MakeOwnershipValue(instanceID),
+		Target:   MakeOwnershipValue(instanceID, metadata),
 		TTL:      ttl,
 	}
 }

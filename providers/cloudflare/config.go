@@ -17,7 +17,7 @@ type Config struct {
 	ZoneID  string // Zone ID (optional if Zone is set)
 	Zone    string // Zone name for lookup (used if ZoneID is empty)
 	TTL     int    // Record TTL (defaults to DefaultTTL)
-	Proxied bool   // Whether to proxy records through Cloudflare (default: false)
+	Proxied bool   // Whether to proxy records through Cloudflare (default: true)
 }
 
 // Validate checks that all required configuration is present.
@@ -57,7 +57,7 @@ func (c *Config) Validate() error {
 //   - ZONE_ID: Zone ID (optional if ZONE is set)
 //   - ZONE: Zone name for lookup (optional if ZONE_ID is set)
 //   - TTL: Record TTL (optional, defaults to 300)
-//   - PROXIED: Enable Cloudflare proxy (optional, defaults to false)
+//   - PROXIED: Enable Cloudflare proxy (optional, defaults to true)
 func LoadConfig(instanceName string) (*Config, error) {
 	prefix := envPrefix(instanceName)
 
@@ -66,7 +66,7 @@ func LoadConfig(instanceName string) (*Config, error) {
 		ZoneID:  getEnv(prefix + "ZONE_ID"),
 		Zone:    getEnv(prefix + "ZONE"),
 		TTL:     DefaultTTL,
-		Proxied: false,
+		Proxied: true,
 	}
 
 	// Parse optional TTL
@@ -141,14 +141,14 @@ func parseBool(s string) bool {
 //   - ZONE_ID: Zone ID (optional if ZONE is set)
 //   - ZONE: Zone name for lookup (optional if ZONE_ID is set)
 //   - TTL: Record TTL (optional, defaults to 300)
-//   - PROXIED: Enable Cloudflare proxy (optional, defaults to false)
+//   - PROXIED: Enable Cloudflare proxy (optional, defaults to true)
 func LoadConfigFromMap(instanceName string, config map[string]string) (*Config, error) {
 	cfg := &Config{
 		Token:   config["TOKEN"],
 		ZoneID:  config["ZONE_ID"],
 		Zone:    config["ZONE"],
 		TTL:     DefaultTTL,
-		Proxied: false,
+		Proxied: true,
 	}
 
 	// Parse optional TTL

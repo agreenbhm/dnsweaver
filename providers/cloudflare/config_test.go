@@ -143,8 +143,8 @@ func TestLoadConfig_DefaultValues(t *testing.T) {
 	if config.TTL != DefaultTTL {
 		t.Errorf("expected default TTL %d, got %d", DefaultTTL, config.TTL)
 	}
-	if config.Proxied {
-		t.Error("expected proxied false by default, got true")
+	if !config.Proxied {
+		t.Error("expected proxied true by default, got false")
 	}
 }
 
@@ -219,7 +219,7 @@ func TestLoadConfig_ProxiedVariations(t *testing.T) {
 		{"0", "0", false},
 		{"no", "no", false},
 		{"off", "off", false},
-		{"empty", "", false},
+		{"empty", "", true},
 		{"invalid", "maybe", false},
 	}
 

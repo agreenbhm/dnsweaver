@@ -35,11 +35,27 @@ const (
 	FieldPriority = "priority"
 	FieldWeight   = "weight"
 	FieldEnabled  = "enabled"
+	FieldProxied  = "proxied"
+)
+
+const (
+	// MetaPrefix is the prefix for generic metadata fields.
+	// Labels like dnsweaver.records.<name>.meta.<key>=<value> populate
+	// Extraction.Metadata[key] = value.
+	MetaPrefix = "meta."
+
+	// ProxiedLabel sets the proxied flag for simple hostname mode.
+	// Example: dnsweaver.proxied=false
+	ProxiedLabel = "dnsweaver.proxied"
+
+	// boolTrue and boolFalse are canonical boolean strings for metadata values.
+	boolTrue  = "true"
+	boolFalse = "false"
 )
 
 // namedRecordRegex matches dnsweaver.records.<name>.<field> labels.
-// Captures: [1]=name, [2]=field
-var namedRecordRegex = regexp.MustCompile(`^dnsweaver\.records\.([a-zA-Z0-9_-]+)\.([a-zA-Z0-9_]+)$`)
+// Captures: [1]=name, [2]=field (field may contain dots for meta.* keys).
+var namedRecordRegex = regexp.MustCompile(`^dnsweaver\.records\.([a-zA-Z0-9_-]+)\.([a-zA-Z0-9_.-]+)$`)
 
 // SRVData contains SRV record-specific fields.
 type SRVData struct {
@@ -74,11 +90,16 @@ type Extraction struct {
 
 	// SRV contains SRV-specific fields when Type is "SRV".
 	SRV *SRVData
+
+	// Metadata carries arbitrary key-value pairs for providers.
+	// Populated from "proxied" field and "meta.*" labels.
+	// nil means no metadata.
+	Metadata map[string]string
 }
 
 // HasHints returns true if any hint fields are set.
 func (e Extraction) HasHints() bool {
-	return e.Type != "" || e.Target != "" || e.Provider != "" || e.TTL > 0 || e.SRV != nil
+	return e.Type != "" || e.Target != "" || e.Provider != "" || e.TTL > 0 || e.SRV != nil || len(e.Metadata) > 0
 }
 
 // Parser extracts hostnames from dnsweaver labels.
@@ -137,6 +158,19 @@ func (p *Parser) ExtractHostnames(labels map[string]string) []Extraction {
 					p.logger.Warn("invalid TTL value for simple hostname",
 						slog.String("hostname", hostname),
 						slog.String("ttl", ttlStr),
+					)
+				}
+			}
+
+			// Parse proxied for simple hostname
+			if proxied, ok := labels[ProxiedLabel]; ok && proxied != "" {
+				proxied = strings.TrimSpace(strings.ToLower(proxied))
+				if proxied == boolTrue || proxied == boolFalse {
+					extraction.Metadata = map[string]string{"proxied": proxied}
+				} else {
+					p.logger.Warn("invalid proxied value for simple hostname (must be true/false)",
+						slog.String("hostname", hostname),
+						slog.String("proxied", proxied),
 					)
 				}
 			}
@@ -251,6 +285,41 @@ func (p *Parser) ExtractHostnames(labels map[string]string) []Extraction {
 
 			if hasSRVData {
 				extraction.SRV = srv
+			}
+		}
+
+		// Handle proxied field → Metadata["proxied"]
+		if proxied, ok := fields[FieldProxied]; ok && proxied != "" {
+			proxied = strings.TrimSpace(strings.ToLower(proxied))
+			if proxied == boolTrue || proxied == boolFalse {
+				if extraction.Metadata == nil {
+					extraction.Metadata = make(map[string]string)
+				}
+				extraction.Metadata["proxied"] = proxied
+			} else {
+				p.logger.Warn("invalid proxied value (must be true/false)",
+					slog.String("record", name),
+					slog.String("proxied", proxied),
+				)
+			}
+		}
+
+		// Handle meta.* fields → Metadata[key]
+		// Direct fields (e.g., proxied) take precedence over meta.* equivalents.
+		for field, value := range fields {
+			if !strings.HasPrefix(field, MetaPrefix) {
+				continue
+			}
+			key := strings.TrimPrefix(field, MetaPrefix)
+			if key == "" {
+				continue
+			}
+			if extraction.Metadata == nil {
+				extraction.Metadata = make(map[string]string)
+			}
+			// Direct field wins over meta.* equivalent
+			if _, exists := extraction.Metadata[key]; !exists {
+				extraction.Metadata[key] = value
 			}
 		}
 
