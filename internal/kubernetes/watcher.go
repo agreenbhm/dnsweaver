@@ -145,7 +145,9 @@ func (w *Watcher) Start(ctx context.Context) error {
 	w.createFactories()
 
 	// Set up informers for enabled resource types.
-	w.setupInformers()
+	if err := w.setupInformers(); err != nil {
+		return fmt.Errorf("setting up kubernetes informers: %w", err)
+	}
 
 	// Start factories.
 	w.typedFactory.Start(ctx.Done())
@@ -333,7 +335,9 @@ func (w *Watcher) createFactories() {
 }
 
 // setupInformers creates and registers event handlers for each resource type.
-func (w *Watcher) setupInformers() {
+// Returns an error if any event handler fails to register, since missing handlers
+// means events for that resource type will be silently dropped.
+func (w *Watcher) setupInformers() error {
 	handler := cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(_ interface{}) { w.handleEvent("add") },
 		UpdateFunc: func(_, _ interface{}) { w.handleEvent("update") },
@@ -343,30 +347,32 @@ func (w *Watcher) setupInformers() {
 	if w.config.WatchIngress {
 		w.ingressInformer = w.typedFactory.Networking().V1().Ingresses()
 		if _, err := w.ingressInformer.Informer().AddEventHandler(handler); err != nil {
-			w.logger.Error("failed to add ingress event handler", slog.String("error", err.Error()))
+			return fmt.Errorf("adding ingress event handler: %w", err)
 		}
 	}
 
 	if w.config.WatchServices {
 		w.serviceInformer = w.typedFactory.Core().V1().Services()
 		if _, err := w.serviceInformer.Informer().AddEventHandler(handler); err != nil {
-			w.logger.Error("failed to add service event handler", slog.String("error", err.Error()))
+			return fmt.Errorf("adding service event handler: %w", err)
 		}
 	}
 
 	if w.hasIngressRoute {
 		informer := w.dynamicFactory.ForResource(IngressRouteGVR).Informer()
 		if _, err := informer.AddEventHandler(handler); err != nil {
-			w.logger.Error("failed to add ingressroute event handler", slog.String("error", err.Error()))
+			return fmt.Errorf("adding ingressroute event handler: %w", err)
 		}
 	}
 
 	if w.hasHTTPRoute {
 		informer := w.dynamicFactory.ForResource(HTTPRouteGVR).Informer()
 		if _, err := informer.AddEventHandler(handler); err != nil {
-			w.logger.Error("failed to add httproute event handler", slog.String("error", err.Error()))
+			return fmt.Errorf("adding httproute event handler: %w", err)
 		}
 	}
+
+	return nil
 }
 
 // handleEvent processes an informer event with debouncing.

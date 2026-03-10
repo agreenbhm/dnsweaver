@@ -90,9 +90,12 @@ func TestGetEnvOrFile_NonexistentFile(t *testing.T) {
 	defer os.Unsetenv(directKey)
 	defer os.Unsetenv(fileKey)
 
+	// When _FILE is explicitly set but unreadable, the result should be empty
+	// rather than silently falling through to the direct env var. This prevents
+	// masking misconfigured secret file paths.
 	got := getEnvOrFile(directKey, fileKey)
-	if got != directValue {
-		t.Errorf("getEnvOrFile() = %q, want %q (should fallback to direct value)", got, directValue)
+	if got != "" {
+		t.Errorf("getEnvOrFile() = %q, want %q (should NOT fallback when _FILE is set but unreadable)", got, "")
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -97,6 +98,11 @@ func run() error {
 	// Create context with cancellation for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Register signal handler early so SIGINT/SIGTERM during initialization
+	// still triggers graceful shutdown instead of an ungraceful kill.
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	// Initialize Docker client (when platform includes docker)
 	var dockerClient *docker.Client
@@ -225,8 +231,18 @@ func run() error {
 		// Continue anyway - this is not fatal, just means orphan cleanup may miss some records
 	}
 
-	// Create reconciliation trigger function
+	// Create reconciliation trigger function with concurrency guard.
+	// Timer ticks, Docker events, and K8s events can all trigger reconciliation
+	// concurrently. TryLock ensures only one runs at a time — concurrent callers
+	// skip rather than queue, since a running reconciliation will pick up changes.
+	var reconcileMu sync.Mutex
 	triggerReconcile := func() {
+		if !reconcileMu.TryLock() {
+			logger.Debug("reconciliation already in progress, skipping")
+			return
+		}
+		defer reconcileMu.Unlock()
+
 		result, err := rec.Reconcile(ctx)
 		if err != nil {
 			logger.Error("reconciliation failed", slog.String("error", err.Error()))
@@ -331,8 +347,11 @@ func run() error {
 
 	// Start periodic reconciliation timer as a safety net
 	// This catches any missed events and ensures eventual consistency
+	var wg sync.WaitGroup
 	if cfg.ReconcileInterval() > 0 {
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			ticker := time.NewTicker(cfg.ReconcileInterval())
 			defer ticker.Stop()
 			for {
@@ -360,8 +379,7 @@ func run() error {
 	)
 
 	// Handle shutdown signals
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	// (sigChan registered early — see top of run())
 
 	// Wait for shutdown signal
 	sig := <-sigChan
@@ -370,6 +388,9 @@ func run() error {
 	// Graceful shutdown
 	logger.Info("shutting down...")
 	cancel()
+
+	// Wait for periodic reconciliation goroutine to exit
+	wg.Wait()
 
 	if dockerWatcher != nil {
 		dockerWatcher.Stop()

@@ -25,6 +25,33 @@ func (r *Reconciler) cleanupOrphans(ctx context.Context, currentHostnames map[st
 	}
 	r.mu.RUnlock()
 
+	// Count orphans before processing
+	var orphanCount int
+	for hostname := range previousHostnames {
+		if _, stillExists := currentHostnames[hostname]; !stillExists {
+			orphanCount++
+		}
+	}
+
+	// Circuit breaker: if more than 50% of previously known hostnames would be
+	// orphaned, assume the source (Docker/K8s) is temporarily unavailable rather
+	// than all workloads genuinely disappearing. This prevents mass deletion of
+	// DNS records when a platform API returns an empty/partial workload list.
+	const massDeleteThreshold = 0.5
+	if len(previousHostnames) > 0 && orphanCount > 0 {
+		orphanRatio := float64(orphanCount) / float64(len(previousHostnames))
+		if orphanRatio > massDeleteThreshold && orphanCount > 1 {
+			r.logger.Error("mass deletion circuit breaker triggered — skipping orphan cleanup",
+				slog.Int("orphan_count", orphanCount),
+				slog.Int("previous_count", len(previousHostnames)),
+				slog.Int("current_count", len(currentHostnames)),
+				slog.Float64("orphan_ratio", orphanRatio),
+				slog.Float64("threshold", massDeleteThreshold),
+			)
+			return nil
+		}
+	}
+
 	// Find hostnames that were known before but are no longer present
 	for hostname := range previousHostnames {
 		if _, stillExists := currentHostnames[hostname]; !stillExists {
@@ -90,7 +117,7 @@ func (r *Reconciler) deleteOrphanForProvider(ctx context.Context, hostname strin
 // This mode deletes any in-scope record without requiring ownership, but only
 // touches record types that the provider supports (via Capabilities).
 func (r *Reconciler) deleteAuthoritativeForProvider(ctx context.Context, hostname string, inst *provider.ProviderInstance, cache *recordCache) []Action {
-	if r.config.DryRun {
+	if r.isDryRun() {
 		action := Action{
 			Type:       ActionDelete,
 			Provider:   inst.Name(),
@@ -213,7 +240,7 @@ func (r *Reconciler) deleteAuthoritativeForProvider(ctx context.Context, hostnam
 // deleteManagedForProvider deletes orphan records in managed mode with ownership tracking.
 // Only deletes records that have an ownership TXT marker.
 func (r *Reconciler) deleteManagedForProvider(ctx context.Context, hostname string, inst *provider.ProviderInstance, cache *recordCache) []Action {
-	if r.config.DryRun {
+	if r.isDryRun() {
 		action := Action{
 			Type:       ActionDelete,
 			Provider:   inst.Name(),
@@ -368,7 +395,7 @@ func (r *Reconciler) deleteManagedForProvider(ctx context.Context, hostname stri
 // deleteCacheOnlyForProvider deletes orphan records in managed mode without ownership tracking.
 // Uses the cache to determine what record types exist.
 func (r *Reconciler) deleteCacheOnlyForProvider(ctx context.Context, hostname string, inst *provider.ProviderInstance, cache *recordCache) []Action {
-	if r.config.DryRun {
+	if r.isDryRun() {
 		action := Action{
 			Type:       ActionDelete,
 			Provider:   inst.Name(),
@@ -481,7 +508,7 @@ func (r *Reconciler) deleteRecord(ctx context.Context, hostname string) []Action
 			Target:     inst.Target,
 		}
 
-		if r.config.DryRun {
+		if r.isDryRun() {
 			action.Status = StatusSuccess
 			r.logger.Info("would delete record (dry-run)",
 				slog.String("hostname", hostname),
@@ -538,7 +565,7 @@ func (r *Reconciler) deleteFromCache(ctx context.Context, hostname string, cache
 	matchingProviders := r.providers.MatchingProviders(hostname)
 
 	for _, inst := range matchingProviders {
-		if r.config.DryRun {
+		if r.isDryRun() {
 			action := Action{
 				Type:       ActionDelete,
 				Provider:   inst.Name(),
@@ -649,7 +676,7 @@ func (r *Reconciler) deleteWithOwnership(ctx context.Context, hostname string, c
 	matchingProviders := r.providers.MatchingProviders(hostname)
 
 	for _, inst := range matchingProviders {
-		if r.config.DryRun {
+		if r.isDryRun() {
 			action := Action{
 				Type:       ActionDelete,
 				Provider:   inst.Name(),

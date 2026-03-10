@@ -44,7 +44,7 @@ func TestNew(t *testing.T) {
 	// so we test New with nil (which the reconciler handles gracefully in tests)
 	r := New(nil, sources, providers)
 
-	if r.config.Enabled != true {
+	if !r.isEnabled() {
 		t.Error("New should use default config with Enabled=true")
 	}
 
@@ -60,13 +60,13 @@ func TestNew(t *testing.T) {
 		WithLogger(logger),
 	)
 
-	if !r.config.DryRun {
+	if !r.isDryRun() {
 		t.Error("WithConfig should set DryRun")
 	}
 	if r.config.CleanupOrphans {
 		t.Error("WithConfig should set CleanupOrphans")
 	}
-	if r.config.Enabled {
+	if r.isEnabled() {
 		t.Error("WithConfig should set Enabled")
 	}
 }
@@ -98,14 +98,15 @@ func TestReconciler_SetEnabled(t *testing.T) {
 		config: DefaultConfig(),
 		logger: slog.Default(),
 	}
+	r.syncAtomics()
 
 	r.SetEnabled(false)
-	if r.config.Enabled {
+	if r.isEnabled() {
 		t.Error("SetEnabled(false) should disable reconciliation")
 	}
 
 	r.SetEnabled(true)
-	if !r.config.Enabled {
+	if !r.isEnabled() {
 		t.Error("SetEnabled(true) should enable reconciliation")
 	}
 }
@@ -115,14 +116,15 @@ func TestReconciler_SetDryRun(t *testing.T) {
 		config: DefaultConfig(),
 		logger: slog.Default(),
 	}
+	r.syncAtomics()
 
 	r.SetDryRun(true)
-	if !r.config.DryRun {
+	if !r.isDryRun() {
 		t.Error("SetDryRun(true) should enable dry-run mode")
 	}
 
 	r.SetDryRun(false)
-	if r.config.DryRun {
+	if r.isDryRun() {
 		t.Error("SetDryRun(false) should disable dry-run mode")
 	}
 }
@@ -133,6 +135,7 @@ func TestReconciler_KnownHostnames(t *testing.T) {
 		logger:         slog.Default(),
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	// Initially empty
 	if len(r.KnownHostnames()) != 0 {
@@ -164,6 +167,7 @@ func TestReconciler_ReconcileHostname_Disabled(t *testing.T) {
 		logger:         slog.Default(),
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	result, err := r.ReconcileHostname(context.Background(), "app.example.com")
 
@@ -181,6 +185,7 @@ func TestReconciler_RemoveHostname_Disabled(t *testing.T) {
 		logger:         slog.Default(),
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	result, err := r.RemoveHostname(context.Background(), "app.example.com")
 
@@ -204,6 +209,7 @@ func TestReconciler_Config(t *testing.T) {
 		config: cfg,
 		logger: slog.Default(),
 	}
+	r.syncAtomics()
 
 	got := r.Config()
 
@@ -231,6 +237,7 @@ func TestReconciler_EnsureRecord_NoMatchingProvider(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	hostname := &source.Hostname{Name: "unmatched.example.com", Source: "test"}
 	actions := r.ensureRecord(context.Background(), hostname, nil)
@@ -258,6 +265,7 @@ func TestReconciler_DeleteRecord_NoMatchingProvider(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	actions := r.deleteRecord(context.Background(), "unmatched.example.com")
 
@@ -281,6 +289,7 @@ func TestReconciler_CleanupOrphans(t *testing.T) {
 			"current.example.com": {},
 		},
 	}
+	r.syncAtomics()
 
 	currentHostnames := map[string]*source.Hostname{
 		"current.example.com": {Name: "current.example.com", Source: "test"},
@@ -362,7 +371,7 @@ func TestReconciler_IntegrationScenario(t *testing.T) {
 	if r.providers != providers {
 		t.Error("providers not set correctly")
 	}
-	if !r.config.DryRun {
+	if !r.isDryRun() {
 		t.Error("config not applied correctly")
 	}
 }

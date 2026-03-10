@@ -100,6 +100,7 @@ func TestReconcileHostname_CreatesRecord(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	result, err := r.ReconcileHostname(context.Background(), "app.example.com")
 
@@ -153,6 +154,7 @@ func TestReconcileHostname_SkipsNoMatch(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	result, err := r.ReconcileHostname(context.Background(), "app.example.com")
 
@@ -196,6 +198,7 @@ func TestRemoveHostname_DeletesRecord(t *testing.T) {
 		logger:         logger,
 		knownHostnames: map[string]struct{}{"app.example.com": {}},
 	}
+	r.syncAtomics()
 
 	result, err := r.RemoveHostname(context.Background(), "app.example.com")
 
@@ -241,6 +244,7 @@ func TestRemoveHostname_NoMatchingProvider(t *testing.T) {
 		logger:         logger,
 		knownHostnames: map[string]struct{}{"app.example.com": {}},
 	}
+	r.syncAtomics()
 
 	result, err := r.RemoveHostname(context.Background(), "app.example.com")
 
@@ -299,6 +303,7 @@ func TestDeleteRecordFromCache_DeletesAllTypes(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	actions := r.deleteFromCache(context.Background(), "app.example.com", cache)
 
@@ -355,6 +360,7 @@ func TestDeleteRecordFromCache_DryRun(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	actions := r.deleteFromCache(context.Background(), "app.example.com", cache)
 
@@ -411,6 +417,7 @@ func TestDeleteRecordWithOwnershipCheck_DeletesOwnedRecords(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	actions := r.deleteWithOwnership(context.Background(), "app.example.com", cache)
 
@@ -457,6 +464,7 @@ func TestDeleteRecordWithOwnershipCheck_SkipsUnownedRecords(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	actions := r.deleteWithOwnership(context.Background(), "app.example.com", cache)
 
@@ -509,6 +517,7 @@ func TestDeleteRecordWithOwnershipCheck_DryRun(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	actions := r.deleteWithOwnership(context.Background(), "app.example.com", cache)
 
@@ -550,6 +559,7 @@ func TestEnsureRecord_SRVRecord(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	// Use RecordHints to specify SRV record
 	hostname := &source.Hostname{
@@ -637,6 +647,7 @@ func TestEnsureRecord_SRVRecordSkipsMatchingExisting(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	// Build cache from the mock provider's existing records
 	cache := newRecordCache(context.Background(), providers, logger)
@@ -714,6 +725,7 @@ func TestEnsureRecord_SRVRecordCreatesWhenDifferentData(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	// Build cache from the mock provider's existing records
 	cache := newRecordCache(context.Background(), providers, logger)

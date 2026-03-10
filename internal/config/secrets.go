@@ -2,6 +2,7 @@
 package config
 
 import (
+	"log/slog"
 	"os"
 	"strings"
 )
@@ -17,6 +18,11 @@ func getEnv(key string) string {
 // If both are set, the file takes precedence. This allows local development
 // with direct values while production uses Docker secrets.
 //
+// If the file key is set but the file cannot be read, this returns an empty
+// string (hard failure) rather than silently falling through to the direct
+// env var. This prevents silent misconfiguration when a secret file path is
+// explicitly configured but points to an unreadable location.
+//
 // The file contents are trimmed of leading/trailing whitespace.
 func getEnvOrFile(directKey, fileKey string) string {
 	// Check for file-based secret first (Docker secrets pattern)
@@ -25,8 +31,15 @@ func getEnvOrFile(directKey, fileKey string) string {
 		if err == nil {
 			return strings.TrimSpace(string(content))
 		}
-		// If file read fails, fall through to direct value
-		// This could be logged as a warning in the future
+		// File key was explicitly set but file can't be read — this is a
+		// configuration error. Return empty rather than silently falling
+		// through to the direct env var, which would mask the problem.
+		slog.Warn("secret file specified but unreadable, ignoring direct env var",
+			slog.String("file_key", fileKey),
+			slog.String("file_path", filePath),
+			slog.String("error", err.Error()),
+		)
+		return ""
 	}
 
 	return os.Getenv(directKey)

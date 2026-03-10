@@ -41,6 +41,7 @@ func TestEnsureRecord_CreatesNewRecord(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	hostname := &source.Hostname{Name: "app.example.com", Source: "test"}
 	actions := r.ensureRecord(context.Background(), hostname, nil)
@@ -98,6 +99,7 @@ func TestEnsureRecord_SkipsExistingRecord(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	hostname := &source.Hostname{Name: "app.example.com", Source: "test"}
 	actions := r.ensureRecord(context.Background(), hostname, cache)
@@ -145,6 +147,7 @@ func TestEnsureRecord_UpdatesChangedTarget(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	hostname := &source.Hostname{Name: "app.example.com", Source: "test"}
 	actions := r.ensureRecord(context.Background(), hostname, cache)
@@ -214,6 +217,7 @@ func TestEnsureRecord_SkipsTypeConflict(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	hostname := &source.Hostname{Name: "app.example.com", Source: "test"}
 	actions := r.ensureRecord(context.Background(), hostname, cache)
@@ -257,6 +261,7 @@ func TestEnsureRecord_NoMatchingProvider(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	// Hostname doesn't match pattern
 	hostname := &source.Hostname{Name: "app.example.com", Source: "test"}
@@ -296,6 +301,7 @@ func TestEnsureRecord_DryRunDoesNotCallProvider(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	hostname := &source.Hostname{Name: "app.example.com", Source: "test"}
 	actions := r.ensureRecord(context.Background(), hostname, nil)
@@ -340,6 +346,7 @@ func TestEnsureRecord_WithRecordHints(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	// Hostname with hints that override target
 	hostname := &source.Hostname{
@@ -430,6 +437,7 @@ func TestEnsureRecord_ExplicitProviderHint(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	// Route to specific provider via hint
 	hostname := &source.Hostname{
@@ -483,6 +491,7 @@ func TestEnsureRecord_ProviderCreateFails(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	hostname := &source.Hostname{Name: "app.example.com", Source: "test"}
 	actions := r.ensureRecord(context.Background(), hostname, nil)
@@ -534,6 +543,7 @@ func TestDeleteRecord_DeletesExistingRecord(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	actions := r.deleteRecord(context.Background(), "app.example.com")
 
@@ -576,6 +586,7 @@ func TestDeleteRecord_NoMatchingProvider(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	// No provider matches example.com
 	actions := r.deleteRecord(context.Background(), "app.example.com")
@@ -613,6 +624,7 @@ func TestDeleteRecord_DryRunDoesNotDelete(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	actions := r.deleteRecord(context.Background(), "app.example.com")
 
@@ -663,6 +675,7 @@ func TestDeleteRecord_WithOwnershipTracking(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	actions := r.deleteRecord(context.Background(), "app.example.com")
 
@@ -720,6 +733,7 @@ func TestCleanupOrphans_DeletesRemovedHostnames(t *testing.T) {
 			"current.example.com": {},
 		},
 	}
+	r.syncAtomics()
 
 	// Current hostnames - "old.example.com" is gone
 	currentHostnames := map[string]*source.Hostname{
@@ -777,6 +791,7 @@ func TestCleanupOrphans_SkipsUnownedRecords(t *testing.T) {
 			"manual.example.com": {}, // Was known before
 		},
 	}
+	r.syncAtomics()
 
 	// No current hostnames - manual.example.com is orphaned
 	currentHostnames := map[string]*source.Hostname{}
@@ -813,6 +828,7 @@ func TestCleanupOrphans_NoOrphans(t *testing.T) {
 			"app.example.com": {},
 		},
 	}
+	r.syncAtomics()
 
 	// Same hostname still exists - no orphans
 	currentHostnames := map[string]*source.Hostname{
@@ -853,6 +869,7 @@ func TestEnsureOwnershipRecord_CreatesWhenEnabled(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	inst, _ := providers.Get("test-dns")
 	r.ensureOwnershipRecord(context.Background(), "app.example.com", inst, nil)
@@ -895,6 +912,7 @@ func TestEnsureOwnershipRecord_SkipsWhenDisabled(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	inst, _ := providers.Get("test-dns")
 	r.ensureOwnershipRecord(context.Background(), "app.example.com", inst, nil)
@@ -964,6 +982,7 @@ func TestEnsureRecord_MultipleMatchingProviders(t *testing.T) {
 		logger:         logger,
 		knownHostnames: make(map[string]struct{}),
 	}
+	r.syncAtomics()
 
 	hostname := &source.Hostname{Name: "app.example.com", Source: "test"}
 	actions := r.ensureRecord(context.Background(), hostname, nil)
@@ -1028,6 +1047,7 @@ func TestCleanupOrphans_AdditiveMode_NeverDeletes(t *testing.T) {
 			"orphan.example.com": {}, // Was known before
 		},
 	}
+	r.syncAtomics()
 
 	// No current hostnames - orphan.example.com is orphaned
 	currentHostnames := map[string]*source.Hostname{}
@@ -1097,11 +1117,19 @@ func TestCleanupOrphans_ManagedMode_DeletesOwnedOnly(t *testing.T) {
 		knownHostnames: map[string]struct{}{
 			"owned.example.com":   {},
 			"unowned.example.com": {},
+			"still1.example.com":  {},
+			"still2.example.com":  {},
+			"still3.example.com":  {},
 		},
 	}
+	r.syncAtomics()
 
-	// No current hostnames - both are orphaned
-	currentHostnames := map[string]*source.Hostname{}
+	// Only owned/unowned are orphaned (2/5 = 40%, below circuit breaker threshold)
+	currentHostnames := map[string]*source.Hostname{
+		"still1.example.com": {Name: "still1.example.com", Source: "test"},
+		"still2.example.com": {Name: "still2.example.com", Source: "test"},
+		"still3.example.com": {Name: "still3.example.com", Source: "test"},
+	}
 
 	actions := r.cleanupOrphans(context.Background(), currentHostnames, cache)
 
@@ -1176,11 +1204,19 @@ func TestCleanupOrphans_AuthoritativeMode_DeletesAll(t *testing.T) {
 		knownHostnames: map[string]struct{}{
 			"owned.example.com":   {},
 			"unowned.example.com": {},
+			"active1.example.com": {},
+			"active2.example.com": {},
+			"active3.example.com": {},
 		},
 	}
+	r.syncAtomics()
 
-	// No current hostnames - both are orphaned
-	currentHostnames := map[string]*source.Hostname{}
+	// Only owned/unowned are orphaned (2/5 = 40%, below circuit breaker threshold)
+	currentHostnames := map[string]*source.Hostname{
+		"active1.example.com": {Name: "active1.example.com", Source: "test"},
+		"active2.example.com": {Name: "active2.example.com", Source: "test"},
+		"active3.example.com": {Name: "active3.example.com", Source: "test"},
+	}
 
 	actions := r.cleanupOrphans(context.Background(), currentHostnames, cache)
 

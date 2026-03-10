@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gitlab.bluewillows.net/root/dnsweaver/internal/metrics"
@@ -79,6 +80,13 @@ type Reconciler struct {
 	config    Config
 	logger    *slog.Logger
 
+	// enabled and dryRun are the runtime-mutable copies of config.Enabled
+	// and config.DryRun. They use atomic.Bool for safe concurrent access
+	// from SetEnabled/SetDryRun (API handlers) and Reconcile (periodic timer,
+	// Docker/K8s event handlers).
+	enabled atomic.Bool
+	dryRun  atomic.Bool
+
 	// mu protects knownHostnames and recoveredMetadata during concurrent access
 	mu sync.RWMutex
 	// knownHostnames tracks hostnames discovered in the last reconciliation.
@@ -134,7 +142,18 @@ func New(
 		opt(r)
 	}
 
+	// Initialize atomic fields from config
+	r.syncAtomics()
+
 	return r
+}
+
+// syncAtomics initializes the atomic bool fields from the current config values.
+// Called by New() during construction. Tests that construct Reconciler structs
+// directly (bypassing New) must call this after setting config.
+func (r *Reconciler) syncAtomics() {
+	r.enabled.Store(r.config.Enabled)
+	r.dryRun.Store(r.config.DryRun)
 }
 
 // Reconcile performs a full reconciliation of DNS records.
@@ -148,19 +167,21 @@ func New(
 // Returns a Result containing details of all actions taken.
 // The result includes timing, counts, and any errors encountered.
 func (r *Reconciler) Reconcile(ctx context.Context) (*Result, error) {
-	if !r.config.Enabled {
+	if !r.enabled.Load() {
 		r.logger.Debug("reconciliation disabled, skipping")
-		result := NewResult(r.config.DryRun)
+		result := NewResult(r.dryRun.Load())
 		result.Complete()
 		return result, nil
 	}
 
+	dryRun := r.dryRun.Load()
+
 	r.logger.Info("starting reconciliation",
-		slog.Bool("dry_run", r.config.DryRun),
+		slog.Bool("dry_run", dryRun),
 		slog.Bool("cleanup_orphans", r.config.CleanupOrphans),
 	)
 
-	result := NewResult(r.config.DryRun)
+	result := NewResult(dryRun)
 
 	// Step 1: List all workloads from all platform listers
 	var allWorkloads []workload.Workload
@@ -189,7 +210,7 @@ func (r *Reconciler) Reconcile(ctx context.Context) (*Result, error) {
 
 	// Step 3: Build record cache for all providers (single List() call per provider)
 	var cache *recordCache
-	if !r.config.DryRun {
+	if !dryRun {
 		cache = newRecordCache(ctx, r.providers, r.logger)
 	}
 
@@ -323,21 +344,21 @@ func (r *Reconciler) extractHostnames(ctx context.Context, workloads []workload.
 // This is useful for event-driven updates when a specific workload changes.
 // Note: This does not use the record cache since it's a single hostname operation.
 func (r *Reconciler) ReconcileHostname(ctx context.Context, hostnameStr string) (*Result, error) {
-	if !r.config.Enabled {
+	if !r.enabled.Load() {
 		r.logger.Debug("reconciliation disabled, skipping hostname",
 			slog.String("hostname", hostnameStr),
 		)
-		result := NewResult(r.config.DryRun)
+		result := NewResult(r.dryRun.Load())
 		result.Complete()
 		return result, nil
 	}
 
 	r.logger.Debug("reconciling single hostname",
 		slog.String("hostname", hostnameStr),
-		slog.Bool("dry_run", r.config.DryRun),
+		slog.Bool("dry_run", r.dryRun.Load()),
 	)
 
-	result := NewResult(r.config.DryRun)
+	result := NewResult(r.dryRun.Load())
 	result.HostnamesDiscovered = 1
 
 	// No cache for single-hostname reconciliation (not worth it for one query)
@@ -361,8 +382,8 @@ func (r *Reconciler) ReconcileHostname(ctx context.Context, hostnameStr string) 
 // RemoveHostname removes DNS records for a hostname that is no longer needed.
 // This is useful for event-driven cleanup when a workload is removed.
 func (r *Reconciler) RemoveHostname(ctx context.Context, hostname string) (*Result, error) {
-	if !r.config.Enabled {
-		result := NewResult(r.config.DryRun)
+	if !r.enabled.Load() {
+		result := NewResult(r.dryRun.Load())
 		result.Complete()
 		return result, nil
 	}
@@ -371,10 +392,10 @@ func (r *Reconciler) RemoveHostname(ctx context.Context, hostname string) (*Resu
 
 	r.logger.Debug("removing hostname",
 		slog.String("hostname", hostname),
-		slog.Bool("dry_run", r.config.DryRun),
+		slog.Bool("dry_run", r.isDryRun()),
 	)
 
-	result := NewResult(r.config.DryRun)
+	result := NewResult(r.isDryRun())
 
 	actions := r.deleteRecord(ctx, hostname)
 	for _, action := range actions {
@@ -395,9 +416,19 @@ func (r *Reconciler) Config() Config {
 	return r.config
 }
 
+// isDryRun returns the current dry-run state (thread-safe).
+func (r *Reconciler) isDryRun() bool {
+	return r.dryRun.Load()
+}
+
+// isEnabled returns the current enabled state (thread-safe).
+func (r *Reconciler) isEnabled() bool {
+	return r.enabled.Load()
+}
+
 // SetEnabled enables or disables reconciliation.
 func (r *Reconciler) SetEnabled(enabled bool) {
-	r.config.Enabled = enabled
+	r.enabled.Store(enabled)
 	r.logger.Info("reconciliation enabled state changed",
 		slog.Bool("enabled", enabled),
 	)
@@ -405,7 +436,7 @@ func (r *Reconciler) SetEnabled(enabled bool) {
 
 // SetDryRun enables or disables dry-run mode.
 func (r *Reconciler) SetDryRun(dryRun bool) {
-	r.config.DryRun = dryRun
+	r.dryRun.Store(dryRun)
 	r.logger.Info("dry-run mode changed",
 		slog.Bool("dry_run", dryRun),
 	)

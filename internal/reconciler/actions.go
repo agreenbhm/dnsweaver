@@ -126,7 +126,7 @@ func (r *Reconciler) ensureRecordForProvider(ctx context.Context, hostname *sour
 		Target:     target,
 	}
 
-	if r.config.DryRun {
+	if r.isDryRun() {
 		action.Status = StatusSuccess
 		r.logger.Info("would create record (dry-run)",
 			slog.String("hostname", hostname.Name),
