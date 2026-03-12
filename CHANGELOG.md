@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Source Registry**: `dnsweaver.enabled=false` (Docker) and `dnsweaver.dev/enabled=false`
+  (K8s) now opt out of ALL sources at the registry level, not just the dnsweaver native
+  source. Previously the traefik source still extracted hostnames from disabled workloads.
+  Fixes [#75](https://github.com/maxfield-allison/dnsweaver/issues/75),
+  [#152](https://gitlab.bluewillows.net/root/dnsweaver/-/issues/152).
+
 ## [0.9.1] - 2026-03-09
 
 ### Fixed

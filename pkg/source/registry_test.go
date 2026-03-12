@@ -385,3 +385,162 @@ func TestRegistry_DiscoverFrom_NotFound(t *testing.T) {
 		t.Error("expected error for missing source")
 	}
 }
+
+func TestIsWorkloadDisabled(t *testing.T) {
+	tests := []struct {
+		name        string
+		labels      map[string]string
+		annotations map[string]string
+		want        bool
+	}{
+		{
+			name:   "no labels or annotations",
+			labels: map[string]string{},
+			want:   false,
+		},
+		{
+			name:   "docker label false",
+			labels: map[string]string{"dnsweaver.enabled": "false"},
+			want:   true,
+		},
+		{
+			name:   "docker label FALSE (uppercase)",
+			labels: map[string]string{"dnsweaver.enabled": "FALSE"},
+			want:   true,
+		},
+		{
+			name:   "docker label false with whitespace",
+			labels: map[string]string{"dnsweaver.enabled": "  false  "},
+			want:   true,
+		},
+		{
+			name:   "docker label true",
+			labels: map[string]string{"dnsweaver.enabled": "true"},
+			want:   false,
+		},
+		{
+			name:   "docker label empty",
+			labels: map[string]string{"dnsweaver.enabled": ""},
+			want:   false,
+		},
+		{
+			name:        "k8s annotation false",
+			labels:      map[string]string{},
+			annotations: map[string]string{"dnsweaver.dev/enabled": "false"},
+			want:        true,
+		},
+		{
+			name:        "k8s annotation FALSE (uppercase)",
+			labels:      map[string]string{},
+			annotations: map[string]string{"dnsweaver.dev/enabled": "FALSE"},
+			want:        true,
+		},
+		{
+			name:        "k8s annotation true",
+			labels:      map[string]string{},
+			annotations: map[string]string{"dnsweaver.dev/enabled": "true"},
+			want:        false,
+		},
+		{
+			name:        "docker label takes precedence over annotation",
+			labels:      map[string]string{"dnsweaver.enabled": "false"},
+			annotations: map[string]string{"dnsweaver.dev/enabled": "true"},
+			want:        true,
+		},
+		{
+			name:   "unrelated labels only",
+			labels: map[string]string{"traefik.enable": "false", "other": "value"},
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := workload.Workload{
+				Labels:      tt.labels,
+				Annotations: tt.annotations,
+			}
+			got := isWorkloadDisabled(w)
+			if got != tt.want {
+				t.Errorf("isWorkloadDisabled() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRegistry_ExtractAll_DisabledWorkload(t *testing.T) {
+	r := NewRegistry(testLogger())
+
+	src := &mockSource{
+		name: "traefik",
+		hostnames: []Hostname{
+			{Name: "app.example.com", Source: "traefik", Router: "app"},
+		},
+	}
+	_ = r.Register(src)
+
+	// Workload with dnsweaver.enabled=false should return no hostnames
+	w := workload.Workload{
+		Name:     "disabled-container",
+		Labels:   map[string]string{"dnsweaver.enabled": "false", "traefik.http.routers.app.rule": "Host(`app.example.com`)"},
+		Platform: workload.PlatformDocker,
+	}
+	hostnames := r.ExtractAll(context.Background(), w)
+
+	if len(hostnames) != 0 {
+		t.Errorf("ExtractAll returned %d hostnames for disabled workload, want 0", len(hostnames))
+	}
+}
+
+func TestRegistry_ExtractAll_DisabledK8sWorkload(t *testing.T) {
+	r := NewRegistry(testLogger())
+
+	src := &mockSource{
+		name: "traefik",
+		hostnames: []Hostname{
+			{Name: "app.example.com", Source: "traefik", Router: "app"},
+		},
+		platforms: []workload.Platform{workload.PlatformKubernetes},
+	}
+	_ = r.Register(src)
+
+	// K8s workload with annotation opt-out
+	w := workload.Workload{
+		Name:        "disabled-ingress",
+		Labels:      map[string]string{},
+		Annotations: map[string]string{"dnsweaver.dev/enabled": "false"},
+		Platform:    workload.PlatformKubernetes,
+	}
+	hostnames := r.ExtractAll(context.Background(), w)
+
+	if len(hostnames) != 0 {
+		t.Errorf("ExtractAll returned %d hostnames for disabled K8s workload, want 0", len(hostnames))
+	}
+}
+
+func TestRegistry_ExtractAll_EnabledWorkload(t *testing.T) {
+	r := NewRegistry(testLogger())
+
+	src := &mockSource{
+		name: "traefik",
+		hostnames: []Hostname{
+			{Name: "app.example.com", Source: "traefik", Router: "app"},
+		},
+	}
+	_ = r.Register(src)
+
+	// Workload with dnsweaver.enabled=true should work normally
+	w := workload.Workload{
+		Name:     "enabled-container",
+		Labels:   map[string]string{"dnsweaver.enabled": "true"},
+		Platform: workload.PlatformDocker,
+	}
+	hostnames := r.ExtractAll(context.Background(), w)
+
+	if len(hostnames) != 1 {
+		t.Fatalf("ExtractAll returned %d hostnames, want 1", len(hostnames))
+	}
+	if hostnames[0].Name != "app.example.com" {
+		t.Errorf("hostname = %q, want %q", hostnames[0].Name, "app.example.com")
+	}
+}

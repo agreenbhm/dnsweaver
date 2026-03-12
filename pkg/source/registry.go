@@ -3,6 +3,7 @@ package source
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
 
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
@@ -86,12 +87,25 @@ func (r *Registry) Count() int {
 // in source registration order. Duplicate hostnames are NOT removed to
 // preserve source attribution - use Hostnames.Deduplicate() if needed.
 //
+// Workloads with dnsweaver.enabled=false (Docker label) or
+// dnsweaver.dev/enabled=false (K8s annotation) are skipped entirely —
+// no sources are queried.
+//
 // Sources that declare SupportedPlatforms() are only queried if the workload's
 // platform matches. Sources with empty SupportedPlatforms() are always queried.
 //
 // If a source returns an error, extraction continues with remaining sources.
 // Errors are logged but not returned to allow partial results.
 func (r *Registry) ExtractAll(ctx context.Context, w workload.Workload) Hostnames {
+	// Global opt-out: dnsweaver.enabled=false skips ALL sources.
+	// Check Docker labels first, then K8s annotations.
+	if isWorkloadDisabled(w) {
+		r.logger.Debug("workload disabled via dnsweaver.enabled=false, skipping all sources",
+			slog.String("workload", w.Name),
+		)
+		return nil
+	}
+
 	r.mu.RLock()
 	sources := make([]Source, len(r.sources))
 	copy(sources, r.sources)
@@ -138,6 +152,29 @@ func sourceSupports(src Source, platform workload.Platform) bool {
 			return true
 		}
 	}
+	return false
+}
+
+// isWorkloadDisabled returns true if the workload has opted out of DNS management.
+//
+// Checks both Docker labels ("dnsweaver.enabled") and Kubernetes annotations
+// ("dnsweaver.dev/enabled"). The value must be "false" (case-insensitive,
+// whitespace-trimmed) to disable.
+func isWorkloadDisabled(w workload.Workload) bool {
+	// Docker labels: dnsweaver.enabled=false
+	if v, ok := w.Labels["dnsweaver.enabled"]; ok {
+		if strings.EqualFold(strings.TrimSpace(v), "false") {
+			return true
+		}
+	}
+
+	// K8s annotations: dnsweaver.dev/enabled=false
+	if v, ok := w.Annotations["dnsweaver.dev/enabled"]; ok {
+		if strings.EqualFold(strings.TrimSpace(v), "false") {
+			return true
+		}
+	}
+
 	return false
 }
 
