@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -232,29 +233,49 @@ func run() error {
 	}
 
 	// Create reconciliation trigger function with concurrency guard.
-	// Timer ticks, Docker events, and K8s events can all trigger reconciliation
-	// concurrently. TryLock ensures only one runs at a time — concurrent callers
-	// skip rather than queue, since a running reconciliation will pick up changes.
-	var reconcileMu sync.Mutex
-	triggerReconcile := func() {
-		if !reconcileMu.TryLock() {
-			logger.Debug("reconciliation already in progress, skipping")
-			return
-		}
-		defer reconcileMu.Unlock()
+	// TryLock ensures only one reconciliation runs at a time. When a trigger
+	// is skipped (lock held), reconcilePending is set so the running
+	// reconciliation performs a follow-up pass to catch changes that arrived
+	// mid-cycle — including Docker/K8s events during the initial startup scan (#55).
+	var (
+		reconcileMu      sync.Mutex
+		reconcilePending atomic.Bool
+	)
 
+	doReconcile := func(reason string) {
 		result, err := rec.Reconcile(ctx)
 		if err != nil {
-			logger.Error("reconciliation failed", slog.String("error", err.Error()))
+			logger.Error("reconciliation failed",
+				slog.String("reason", reason),
+				slog.String("error", err.Error()),
+			)
 			return
 		}
 		logger.Info("reconciliation complete",
+			slog.String("reason", reason),
 			slog.Int("created", result.CreatedCount()),
 			slog.Int("deleted", result.DeletedCount()),
 			slog.Int("skipped", len(result.Skipped())),
 			slog.Int("errors", result.FailedCount()),
 			slog.Duration("duration", result.Duration()),
 		)
+	}
+
+	triggerReconcile := func() {
+		if !reconcileMu.TryLock() {
+			reconcilePending.Store(true)
+			logger.Debug("reconciliation already in progress, marking pending")
+			return
+		}
+		defer reconcileMu.Unlock()
+
+		doReconcile("triggered")
+
+		// If a trigger was skipped while we were reconciling, run once more
+		// to pick up changes that arrived mid-cycle (e.g., events during startup).
+		if reconcilePending.CompareAndSwap(true, false) {
+			doReconcile("pending catch-up")
+		}
 	}
 
 	// Set reconcile callback on K8s watcher (now that triggerReconcile exists)
