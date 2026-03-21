@@ -213,7 +213,7 @@ var providerConfigFields = []struct {
 	{"BACKUP", false},               // dnsmasq-specific
 	{"INCLUDE_MARKER", false},       // dnsmasq-specific
 	{"RELOAD_COMMAND", false},       // dnsmasq-specific
-	{"MODE", false},                 // Pi-hole specific (api/file)
+	{"ACCESS_MODE", false},          // Pi-hole specific (api/file) — renamed from MODE in v0.10.0
 	{"PASSWORD", true},              // Pi-hole specific
 	{"INSECURE_SKIP_VERIFY", false}, // TLS certificate verification skip
 	// RFC 2136 specific fields

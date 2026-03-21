@@ -83,7 +83,7 @@ func loadGlobalConfig() (*GlobalConfig, []string) {
 		LogFormat:  getEnv("DNSWEAVER_LOG_FORMAT"),
 		DockerHost: getEnv("DNSWEAVER_DOCKER_HOST"),
 		DockerMode: getEnv("DNSWEAVER_DOCKER_MODE"),
-		Source:     getEnv("DNSWEAVER_SOURCE"),
+		Source:     DefaultSource, // Deprecated: derived from DNSWEAVER_SOURCES via parseSources()
 		Platform:   getEnv("DNSWEAVER_PLATFORM"),
 	}
 
@@ -101,7 +101,7 @@ func loadGlobalConfig() (*GlobalConfig, []string) {
 		cfg.DockerMode = DefaultDockerMode
 	}
 	if cfg.Source == "" {
-		cfg.Source = DefaultSource
+		cfg.Source = DefaultSource // Deprecated field; prefer DNSWEAVER_SOURCES
 	}
 
 	// Platform defaults and validation

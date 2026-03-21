@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 	"strings"
@@ -22,6 +23,10 @@ type FileConfig struct {
 
 	// Platform selection: docker, kubernetes, or both (default: docker)
 	Platform string `yaml:"platform,omitempty"`
+
+	// Multi-instance coordination (preferred location since v0.10.0)
+	// Also accepted under reconciler.instance_id for backward compatibility.
+	InstanceID string `yaml:"instance_id,omitempty"`
 
 	// Docker connection settings
 	Docker *FileDockerConfig `yaml:"docker,omitempty"`
@@ -142,9 +147,11 @@ func (c *FileConfig) interpolateEnvVars() {
 
 	if c.Reconciler != nil {
 		c.Reconciler.Interval = InterpolateEnvVars(c.Reconciler.Interval)
+		c.Reconciler.InstanceID = InterpolateEnvVars(c.Reconciler.InstanceID)
 	}
 
 	c.Platform = InterpolateEnvVars(c.Platform)
+	c.InstanceID = InterpolateEnvVars(c.InstanceID)
 
 	if c.Docker != nil {
 		c.Docker.Host = InterpolateEnvVars(c.Docker.Host)
@@ -273,7 +280,13 @@ func (c *FileConfig) ToGlobalConfig() *GlobalConfig {
 		}
 		if c.Reconciler.InstanceID != "" {
 			cfg.InstanceID = c.Reconciler.InstanceID
+			slog.Warn("reconciler.instance_id is deprecated in YAML config, use top-level instance_id instead")
 		}
+	}
+
+	// Top-level instance_id takes precedence over deprecated reconciler.instance_id
+	if c.InstanceID != "" {
+		cfg.InstanceID = c.InstanceID
 	}
 
 	if c.Docker != nil {

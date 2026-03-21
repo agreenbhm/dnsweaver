@@ -113,7 +113,7 @@ func TestLoad_CompleteConfig(t *testing.T) {
 	os.Setenv("DNSWEAVER_HEALTH_PORT", "9090")
 	os.Setenv("DNSWEAVER_DOCKER_HOST", "tcp://localhost:2375")
 	os.Setenv("DNSWEAVER_DOCKER_MODE", "swarm")
-	os.Setenv("DNSWEAVER_SOURCE", "labels")
+	os.Setenv("DNSWEAVER_SOURCES", "labels") // Use DNSWEAVER_SOURCES (plural), not deprecated singular
 
 	// Instances
 	os.Setenv("DNSWEAVER_INSTANCES", "internal-dns,public-dns")

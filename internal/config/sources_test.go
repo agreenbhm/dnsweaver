@@ -65,6 +65,31 @@ func TestParseSources(t *testing.T) {
 	}
 }
 
+func TestParseSources_DeprecatedSingularFallback(t *testing.T) {
+	os.Clearenv()
+	// Only set the deprecated singular form
+	os.Setenv("DNSWEAVER_SOURCE", "dnsweaver")
+
+	got := parseSources()
+
+	if len(got) != 1 || got[0] != "dnsweaver" {
+		t.Errorf("parseSources() with deprecated DNSWEAVER_SOURCE = %v, want [dnsweaver]", got)
+	}
+}
+
+func TestParseSources_PluralTakesPrecedence(t *testing.T) {
+	os.Clearenv()
+	// Set both — plural should win
+	os.Setenv("DNSWEAVER_SOURCES", "traefik,caddy")
+	os.Setenv("DNSWEAVER_SOURCE", "dnsweaver")
+
+	got := parseSources()
+
+	if len(got) != 2 || got[0] != "traefik" || got[1] != "caddy" {
+		t.Errorf("parseSources() = %v, want [traefik caddy] (plural should take precedence)", got)
+	}
+}
+
 func TestLoadSourceInstanceConfig(t *testing.T) {
 	tests := []struct {
 		name       string

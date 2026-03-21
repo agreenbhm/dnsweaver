@@ -21,6 +21,7 @@ func clearGlobalEnv(t *testing.T) {
 		"DNSWEAVER_HEALTH_PORT",
 		"DNSWEAVER_DOCKER_HOST",
 		"DNSWEAVER_DOCKER_MODE",
+		"DNSWEAVER_SOURCES",
 		"DNSWEAVER_SOURCE",
 		"DNSWEAVER_INSTANCE_ID",
 	}
@@ -92,7 +93,8 @@ func TestLoadGlobalConfig_CustomValues(t *testing.T) {
 	os.Setenv("DNSWEAVER_HEALTH_PORT", "9090")
 	os.Setenv("DNSWEAVER_DOCKER_HOST", "tcp://localhost:2375")
 	os.Setenv("DNSWEAVER_DOCKER_MODE", "swarm")
-	os.Setenv("DNSWEAVER_SOURCE", "labels")
+	// Note: DNSWEAVER_SOURCE is deprecated; GlobalConfig.Source is now always the default.
+	// Source list is controlled by DNSWEAVER_SOURCES via parseSources().
 
 	cfg, errs := loadGlobalConfig()
 
@@ -124,8 +126,8 @@ func TestLoadGlobalConfig_CustomValues(t *testing.T) {
 	if cfg.DockerMode != "swarm" {
 		t.Errorf("DockerMode = %q, want %q", cfg.DockerMode, "swarm")
 	}
-	if cfg.Source != "labels" {
-		t.Errorf("Source = %q, want %q", cfg.Source, "labels")
+	if cfg.Source != DefaultSource {
+		t.Errorf("Source = %q, want %q (deprecated DNSWEAVER_SOURCE should not set GlobalConfig.Source)", cfg.Source, DefaultSource)
 	}
 }
 

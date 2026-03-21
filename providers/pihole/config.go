@@ -134,7 +134,11 @@ func (c *Config) ConfigFilePath() string {
 func LoadConfig(instanceName string) (*Config, error) {
 	prefix := envPrefix(instanceName)
 
-	modeStr := getEnvWithDefault(prefix+"MODE", string(ModeAPI))
+	// ACCESS_MODE is the preferred key (v0.10.0+), fall back to deprecated MODE
+	modeStr := getEnv(prefix + "ACCESS_MODE")
+	if modeStr == "" {
+		modeStr = getEnvWithDefault(prefix+"MODE", string(ModeAPI))
+	}
 	mode := Mode(strings.ToLower(modeStr))
 
 	config := &Config{
@@ -179,7 +183,11 @@ func LoadConfig(instanceName string) (*Config, error) {
 //   - zone: DNS zone
 //   - ttl: Record TTL
 func LoadConfigFromMap(name string, m map[string]string) (*Config, error) {
-	modeStr := getMapValueWithDefault(m, "mode", string(ModeAPI))
+	// ACCESS_MODE is the preferred key (v0.10.0+), fall back to deprecated MODE
+	modeStr := getMapValue(m, "access_mode")
+	if modeStr == "" {
+		modeStr = getMapValueWithDefault(m, "mode", string(ModeAPI))
+	}
 	mode := Mode(strings.ToLower(modeStr))
 
 	config := &Config{

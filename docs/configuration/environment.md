@@ -112,6 +112,10 @@ Replace `{NAME}` with your instance name. For example, instance `internal-dns` u
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DNSWEAVER_SOURCES` | `traefik` | Comma-separated list: `traefik`, `dnsweaver`, `kubernetes` |
+
+!!! warning "Deprecated Variable"
+    `DNSWEAVER_SOURCE` (singular) is deprecated and will be removed in v2.0. Use `DNSWEAVER_SOURCES` (plural) instead.
+    When both are set, `DNSWEAVER_SOURCES` takes precedence.
 | `DNSWEAVER_SOURCE_TRAEFIK_FILE_PATHS` | *(none)* | Paths to Traefik config directories/files |
 | `DNSWEAVER_SOURCE_TRAEFIK_FILE_PATTERN` | `*.yml,*.yaml,*.toml` | Glob pattern for config files |
 | `DNSWEAVER_SOURCE_TRAEFIK_POLL_INTERVAL` | `60s` | File re-scan interval |

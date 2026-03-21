@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log/slog"
 	"strings"
 	"time"
 
@@ -29,11 +30,21 @@ type SourceConfig struct {
 
 // parseSources parses the DNSWEAVER_SOURCES environment variable.
 // Returns the list of source names in order. Defaults to "traefik" if not set.
+//
+// For backward compatibility, DNSWEAVER_SOURCE (singular) is also accepted
+// but deprecated. If DNSWEAVER_SOURCES is not set but DNSWEAVER_SOURCE is,
+// the singular value is used as a single-element source list.
 func parseSources() []string {
 	sourcesStr := getEnv("DNSWEAVER_SOURCES")
 	if sourcesStr == "" {
-		// Default to traefik for backward compatibility
-		return []string{"traefik"}
+		// Fall back to deprecated DNSWEAVER_SOURCE (singular)
+		if sourceStr := getEnv("DNSWEAVER_SOURCE"); sourceStr != "" {
+			slog.Warn("DNSWEAVER_SOURCE is deprecated, use DNSWEAVER_SOURCES instead")
+			sourcesStr = sourceStr
+		} else {
+			// Default to traefik for backward compatibility
+			return []string{"traefik"}
+		}
 	}
 
 	var sources []string

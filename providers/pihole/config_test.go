@@ -50,6 +50,26 @@ func TestLoadConfigFromMap(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "access_mode preferred over mode",
+			config: map[string]string{
+				"access_mode":    "file",
+				"mode":           "api",
+				"config_dir":     "/etc/pihole",
+				"config_file":    "custom.list",
+				"reload_command": "pihole restartdns",
+			},
+			wantErr: false,
+		},
+		{
+			name: "access_mode alone works",
+			config: map[string]string{
+				"access_mode": "api",
+				"url":         "http://pihole.local",
+				"password":    "secret",
+			},
+			wantErr: false,
+		},
+		{
 			name: "invalid TTL",
 			config: map[string]string{
 				"mode":     "api",
@@ -86,6 +106,7 @@ func TestLoadConfig(t *testing.T) {
 	// Clean up environment after test
 	defer func() {
 		os.Unsetenv("DNSWEAVER_TEST_MODE")
+		os.Unsetenv("DNSWEAVER_TEST_ACCESS_MODE")
 		os.Unsetenv("DNSWEAVER_TEST_URL")
 		os.Unsetenv("DNSWEAVER_TEST_PASSWORD")
 		os.Unsetenv("DNSWEAVER_TEST_TTL")
@@ -100,7 +121,18 @@ func TestLoadConfig(t *testing.T) {
 		wantTTL  int
 	}{
 		{
-			name: "API mode from env",
+			name: "API mode from ACCESS_MODE env (preferred)",
+			envVars: map[string]string{
+				"DNSWEAVER_TEST_ACCESS_MODE": "api",
+				"DNSWEAVER_TEST_URL":         "http://pihole.local",
+				"DNSWEAVER_TEST_PASSWORD":    "secret",
+			},
+			wantErr:  false,
+			wantMode: ModeAPI,
+			wantTTL:  DefaultTTL,
+		},
+		{
+			name: "API mode from deprecated MODE env (backward compat)",
 			envVars: map[string]string{
 				"DNSWEAVER_TEST_MODE":     "api",
 				"DNSWEAVER_TEST_URL":      "http://pihole.local",
@@ -111,12 +143,22 @@ func TestLoadConfig(t *testing.T) {
 			wantTTL:  DefaultTTL,
 		},
 		{
+			name: "ACCESS_MODE takes precedence over MODE",
+			envVars: map[string]string{
+				"DNSWEAVER_TEST_ACCESS_MODE": "file",
+				"DNSWEAVER_TEST_MODE":        "api",
+			},
+			wantErr:  false,
+			wantMode: ModeFile,
+			wantTTL:  DefaultTTL,
+		},
+		{
 			name: "custom TTL",
 			envVars: map[string]string{
-				"DNSWEAVER_TEST_MODE":     "api",
-				"DNSWEAVER_TEST_URL":      "http://pihole.local",
-				"DNSWEAVER_TEST_PASSWORD": "secret",
-				"DNSWEAVER_TEST_TTL":      "600",
+				"DNSWEAVER_TEST_ACCESS_MODE": "api",
+				"DNSWEAVER_TEST_URL":         "http://pihole.local",
+				"DNSWEAVER_TEST_PASSWORD":    "secret",
+				"DNSWEAVER_TEST_TTL":         "600",
 			},
 			wantErr:  false,
 			wantMode: ModeAPI,
@@ -125,7 +167,7 @@ func TestLoadConfig(t *testing.T) {
 		{
 			name: "file mode from env",
 			envVars: map[string]string{
-				"DNSWEAVER_TEST_MODE": "file",
+				"DNSWEAVER_TEST_ACCESS_MODE": "file",
 				// Uses defaults for config_dir, config_file, reload_command
 			},
 			wantErr:  false,
@@ -138,6 +180,7 @@ func TestLoadConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Clear all test env vars first
 			os.Unsetenv("DNSWEAVER_TEST_MODE")
+			os.Unsetenv("DNSWEAVER_TEST_ACCESS_MODE")
 			os.Unsetenv("DNSWEAVER_TEST_URL")
 			os.Unsetenv("DNSWEAVER_TEST_PASSWORD")
 			os.Unsetenv("DNSWEAVER_TEST_TTL")

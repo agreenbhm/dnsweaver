@@ -143,6 +143,7 @@ providers:
     target: 192.168.1.100
     config:
       url: http://pihole.example.com
+      access_mode: api        # api (default) or file
       token: ${PIHOLE_TOKEN}
 
   # Webhook provider for custom integrations

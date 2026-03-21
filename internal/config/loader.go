@@ -259,9 +259,9 @@ func mergeGlobalConfig(base *GlobalConfig) (*GlobalConfig, []string) {
 		}
 	}
 
-	if v := getEnv("DNSWEAVER_SOURCE"); v != "" {
-		cfg.Source = v
-	}
+	// Note: DNSWEAVER_SOURCE (singular) is deprecated. Source list is
+	// determined by parseSources() which reads DNSWEAVER_SOURCES and
+	// falls back to DNSWEAVER_SOURCE with a deprecation warning.
 
 	// Override instance ID if set in env
 	if v := getEnv("DNSWEAVER_INSTANCE_ID"); v != "" {

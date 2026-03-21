@@ -16,7 +16,7 @@ environment:
   - DNSWEAVER_INSTANCES=pihole
 
   - DNSWEAVER_PIHOLE_TYPE=pihole
-  - DNSWEAVER_PIHOLE_MODE=api
+  - DNSWEAVER_PIHOLE_ACCESS_MODE=api
   - DNSWEAVER_PIHOLE_URL=http://pihole:80
   - DNSWEAVER_PIHOLE_PASSWORD_FILE=/run/secrets/pihole_password
   - DNSWEAVER_PIHOLE_RECORD_TYPE=A
@@ -33,7 +33,7 @@ environment:
   - DNSWEAVER_INSTANCES=pihole
 
   - DNSWEAVER_PIHOLE_TYPE=pihole
-  - DNSWEAVER_PIHOLE_MODE=file
+  - DNSWEAVER_PIHOLE_ACCESS_MODE=file
   - DNSWEAVER_PIHOLE_CONFIG_DIR=/etc/pihole
   - DNSWEAVER_PIHOLE_RECORD_TYPE=A
   - DNSWEAVER_PIHOLE_TARGET=10.0.0.100
@@ -47,7 +47,12 @@ volumes:
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `TYPE` | Yes | - | Must be `pihole` |
-| `MODE` | No | `api` | `api` or `file` |
+| `ACCESS_MODE` | No | `api` | `api` or `file` |
+
+!!! note "Renamed from MODE"
+    This field was renamed from `MODE` to `ACCESS_MODE` in v0.10 to avoid collision with
+    the per-instance operational `MODE` field (managed/authoritative/additive). The old name
+    still works but will emit a deprecation warning.
 | `URL` | API mode | - | Pi-hole web interface URL |
 | `PASSWORD` | API mode | - | Web interface password |
 | `PASSWORD_FILE` | API alt | - | Path to password file |
