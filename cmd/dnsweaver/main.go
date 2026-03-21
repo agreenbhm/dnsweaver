@@ -238,6 +238,7 @@ func run() error {
 	var (
 		reconcileMu      sync.Mutex
 		reconcilePending atomic.Bool
+		reconcileWg      sync.WaitGroup // tracks in-flight reconciliations for graceful shutdown
 	)
 
 	doReconcile := func(reason string) {
@@ -265,7 +266,12 @@ func run() error {
 			logger.Debug("reconciliation already in progress, marking pending")
 			return
 		}
-		defer reconcileMu.Unlock()
+
+		reconcileWg.Add(1)
+		defer func() {
+			reconcileWg.Done()
+			reconcileMu.Unlock()
+		}()
 
 		doReconcile("triggered")
 
@@ -421,24 +427,56 @@ func run() error {
 	sig := <-sigChan
 	logger.Info("received shutdown signal", slog.String("signal", sig.String()))
 
-	// Graceful shutdown
-	logger.Info("shutting down...")
-	cancel()
+	// Graceful shutdown sequence:
+	// 1. Mark health as shutting down (returns 503 to load balancers)
+	// 2. Stop accepting new events (watchers)
+	// 3. Cancel periodic reconciliation
+	// 4. Wait for in-flight reconciliation to complete (with timeout)
+	// 5. Cancel context and clean up
 
-	// Wait for periodic reconciliation goroutine to exit
-	wg.Wait()
+	logger.Info("shutting down gracefully",
+		slog.Duration("timeout", cfg.ShutdownTimeout()),
+	)
 
+	// Step 1: Health endpoint returns 503, signaling orchestrators to drain
+	healthServer.SetShuttingDown()
+
+	// Step 2: Stop watchers — no new events will trigger reconciliation
 	if dockerWatcher != nil {
 		dockerWatcher.Stop()
+		logger.Debug("docker watcher stopped")
 	}
 	if k8sWatcher != nil {
 		k8sWatcher.Stop()
+		logger.Debug("kubernetes watcher stopped")
 	}
 	if fileWatcher != nil {
 		fileWatcher.Stop()
+		logger.Debug("file watcher stopped")
 	}
 
-	// Shutdown health server with timeout
+	// Step 3: Cancel context to stop periodic reconciliation goroutine
+	cancel()
+	wg.Wait()
+	logger.Debug("periodic reconciliation stopped")
+
+	// Step 4: Wait for in-flight reconciliation to complete (with timeout)
+	reconcileDone := make(chan struct{})
+	go func() {
+		reconcileWg.Wait()
+		close(reconcileDone)
+	}()
+
+	select {
+	case <-reconcileDone:
+		logger.Info("in-flight operations completed")
+	case <-time.After(cfg.ShutdownTimeout()):
+		logger.Warn("shutdown timeout exceeded, in-flight operations may be incomplete",
+			slog.Duration("timeout", cfg.ShutdownTimeout()),
+		)
+	}
+
+	// Step 5: Shutdown health server
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 	if err := healthServer.Shutdown(shutdownCtx); err != nil {

@@ -297,3 +297,41 @@ func TestServer_RegisterDegradedChecker(t *testing.T) {
 		t.Error("expected degraded checker 'test-degraded' to be registered")
 	}
 }
+
+func TestServer_handleReady_ShuttingDown(t *testing.T) {
+	s := New(0)
+
+	// Register a healthy checker to prove we skip it during shutdown
+	s.RegisterChecker("test", func(ctx context.Context) error {
+		return nil
+	})
+
+	// Before shutdown — should be ready
+	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
+	rr := httptest.NewRecorder()
+	s.handleReady(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("before shutdown: status = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	// Mark as shutting down
+	s.SetShuttingDown()
+
+	// After shutdown — should be 503
+	req = httptest.NewRequest(http.MethodGet, "/ready", nil)
+	rr = httptest.NewRecorder()
+	s.handleReady(rr, req)
+
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("during shutdown: status = %d, want %d", rr.Code, http.StatusServiceUnavailable)
+	}
+
+	var resp Response
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Status != "shutting_down" {
+		t.Errorf("status = %q, want %q", resp.Status, "shutting_down")
+	}
+}

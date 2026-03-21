@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -57,6 +58,7 @@ type Server struct {
 	logger  *slog.Logger
 	timeout time.Duration
 
+	shuttingDown     atomic.Bool
 	mu               sync.RWMutex
 	checkers         map[string]HealthChecker
 	degradedCheckers map[string]DegradedChecker
@@ -115,6 +117,14 @@ func (s *Server) RegisterDegradedChecker(name string, checker DegradedChecker) {
 	s.logger.Debug("registered degraded checker", slog.String("name", name))
 }
 
+// SetShuttingDown marks the server as shutting down.
+// The /ready endpoint will return 503 Service Unavailable to signal
+// load balancers and orchestrators to stop sending traffic.
+func (s *Server) SetShuttingDown() {
+	s.shuttingDown.Store(true)
+	s.logger.Info("health server marked as shutting down, /ready will return 503")
+}
+
 func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/health", s.handleHealth)
 	s.mux.HandleFunc("/ready", s.handleReady)
@@ -129,6 +139,15 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
+	// Return 503 immediately during shutdown to signal orchestrators
+	if s.shuttingDown.Load() {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		resp := Response{Status: "shutting_down"}
+		_ = json.NewEncoder(w).Encode(resp)
+		return
+	}
+
 	s.mu.RLock()
 	checkers := make(map[string]HealthChecker, len(s.checkers))
 	for name, checker := range s.checkers {

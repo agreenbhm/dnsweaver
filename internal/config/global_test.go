@@ -23,6 +23,7 @@ func clearGlobalEnv(t *testing.T) {
 		"DNSWEAVER_ADOPT_EXISTING",
 		"DNSWEAVER_DEFAULT_TTL",
 		"DNSWEAVER_RECONCILE_INTERVAL",
+		"DNSWEAVER_SHUTDOWN_TIMEOUT",
 		"DNSWEAVER_HEALTH_PORT",
 		"DNSWEAVER_DOCKER_HOST",
 		"DNSWEAVER_DOCKER_MODE",
@@ -84,6 +85,9 @@ func TestLoadGlobalConfig_Defaults(t *testing.T) {
 	if cfg.ReconcileInterval != DefaultReconcileInterval {
 		t.Errorf("ReconcileInterval = %v, want %v", cfg.ReconcileInterval, DefaultReconcileInterval)
 	}
+	if cfg.ShutdownTimeout != DefaultShutdownTimeout {
+		t.Errorf("ShutdownTimeout = %v, want %v", cfg.ShutdownTimeout, DefaultShutdownTimeout)
+	}
 	if cfg.HealthPort != DefaultHealthPort {
 		t.Errorf("HealthPort = %d, want %d", cfg.HealthPort, DefaultHealthPort)
 	}
@@ -123,6 +127,7 @@ func TestLoadGlobalConfig_CustomValues(t *testing.T) {
 	os.Setenv("DNSWEAVER_LOG_MAX_BACKUPS", "3")
 	os.Setenv("DNSWEAVER_LOG_MAX_AGE", "14")
 	os.Setenv("DNSWEAVER_LOG_COMPRESS", "false")
+	os.Setenv("DNSWEAVER_SHUTDOWN_TIMEOUT", "45s")
 	// Note: DNSWEAVER_SOURCE is deprecated; GlobalConfig.Source is now always the default.
 	// Source list is controlled by DNSWEAVER_SOURCES via parseSources().
 
@@ -161,6 +166,9 @@ func TestLoadGlobalConfig_CustomValues(t *testing.T) {
 	}
 	if cfg.ReconcileInterval != 5*time.Minute {
 		t.Errorf("ReconcileInterval = %v, want %v", cfg.ReconcileInterval, 5*time.Minute)
+	}
+	if cfg.ShutdownTimeout != 45*time.Second {
+		t.Errorf("ShutdownTimeout = %v, want %v", cfg.ShutdownTimeout, 45*time.Second)
 	}
 	if cfg.HealthPort != 9090 {
 		t.Errorf("HealthPort = %d, want %d", cfg.HealthPort, 9090)
@@ -272,6 +280,18 @@ func TestLoadGlobalConfig_InvalidValues(t *testing.T) {
 			envVar:   "DNSWEAVER_HEALTH_PORT",
 			value:    "70000",
 			errMatch: "HEALTH_PORT",
+		},
+		{
+			name:     "invalid shutdown timeout",
+			envVar:   "DNSWEAVER_SHUTDOWN_TIMEOUT",
+			value:    "not-a-duration",
+			errMatch: "SHUTDOWN_TIMEOUT",
+		},
+		{
+			name:     "shutdown timeout too short",
+			envVar:   "DNSWEAVER_SHUTDOWN_TIMEOUT",
+			value:    "500ms",
+			errMatch: "SHUTDOWN_TIMEOUT",
 		},
 	}
 

@@ -63,6 +63,7 @@ type FileRotationConfig struct {
 // FileReconcilerConfig holds reconciliation settings.
 type FileReconcilerConfig struct {
 	Interval          string `yaml:"interval,omitempty"`           // Go duration format (e.g., "60s", "5m")
+	ShutdownTimeout   string `yaml:"shutdown_timeout,omitempty"`   // Max time to wait for in-flight ops during shutdown
 	DryRun            *bool  `yaml:"dry_run,omitempty"`            // Pointer to distinguish unset from false
 	CleanupOrphans    *bool  `yaml:"cleanup_orphans,omitempty"`    // Delete records for removed workloads
 	CleanupOnStop     *bool  `yaml:"cleanup_on_stop,omitempty"`    // Delete records when containers stop
@@ -158,6 +159,7 @@ func (c *FileConfig) interpolateEnvVars() {
 
 	if c.Reconciler != nil {
 		c.Reconciler.Interval = InterpolateEnvVars(c.Reconciler.Interval)
+		c.Reconciler.ShutdownTimeout = InterpolateEnvVars(c.Reconciler.ShutdownTimeout)
 		c.Reconciler.InstanceID = InterpolateEnvVars(c.Reconciler.InstanceID)
 	}
 
@@ -252,6 +254,7 @@ func (c *FileConfig) ToGlobalConfig() *GlobalConfig {
 		AdoptExisting:        DefaultAdoptExisting,
 		DefaultTTL:           DefaultTTL,
 		ReconcileInterval:    DefaultReconcileInterval,
+		ShutdownTimeout:      DefaultShutdownTimeout,
 		HealthPort:           DefaultHealthPort,
 		Platform:             DefaultPlatform,
 		DockerHost:           DefaultDockerHost,
@@ -308,6 +311,11 @@ func (c *FileConfig) ToGlobalConfig() *GlobalConfig {
 		if c.Reconciler.Interval != "" {
 			if interval, err := time.ParseDuration(c.Reconciler.Interval); err == nil && interval >= time.Second {
 				cfg.ReconcileInterval = interval
+			}
+		}
+		if c.Reconciler.ShutdownTimeout != "" {
+			if timeout, err := time.ParseDuration(c.Reconciler.ShutdownTimeout); err == nil && timeout >= time.Second {
+				cfg.ShutdownTimeout = timeout
 			}
 		}
 		if c.Reconciler.InstanceID != "" {

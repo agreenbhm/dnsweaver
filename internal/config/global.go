@@ -23,6 +23,7 @@ const (
 	DefaultAdoptExisting     = false
 	DefaultTTL               = 300
 	DefaultReconcileInterval = 60 * time.Second
+	DefaultShutdownTimeout   = 30 * time.Second
 	DefaultHealthPort        = 8080
 	DefaultDockerHost        = "unix:///var/run/docker.sock"
 	DefaultDockerMode        = "auto"
@@ -56,6 +57,7 @@ type GlobalConfig struct {
 	AdoptExisting     bool          // If true, adopt existing DNS records by creating ownership TXT records
 	DefaultTTL        int           // Default TTL for records if not specified per-provider
 	ReconcileInterval time.Duration // How often to reconcile DNS records
+	ShutdownTimeout   time.Duration // Max time to wait for in-flight operations during shutdown
 	HealthPort        int           // Port for health/metrics endpoints
 
 	// Platform selection
@@ -260,6 +262,20 @@ func loadGlobalConfig() (*GlobalConfig, []string) {
 		}
 	} else {
 		cfg.ReconcileInterval = DefaultReconcileInterval
+	}
+
+	// Parse SHUTDOWN_TIMEOUT (supports Go duration format: 30s, 1m, etc.)
+	if timeoutStr := getEnv("DNSWEAVER_SHUTDOWN_TIMEOUT"); timeoutStr != "" {
+		timeout, err := time.ParseDuration(timeoutStr)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("DNSWEAVER_SHUTDOWN_TIMEOUT: invalid duration %q (use format like 30s, 1m)", timeoutStr))
+		} else if timeout < time.Second {
+			errs = append(errs, "DNSWEAVER_SHUTDOWN_TIMEOUT: must be at least 1s")
+		} else {
+			cfg.ShutdownTimeout = timeout
+		}
+	} else {
+		cfg.ShutdownTimeout = DefaultShutdownTimeout
 	}
 
 	// Parse HEALTH_PORT

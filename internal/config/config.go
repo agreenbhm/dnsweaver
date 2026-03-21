@@ -204,6 +204,11 @@ func (c *Config) ReconcileInterval() time.Duration {
 	return c.Global.ReconcileInterval
 }
 
+// ShutdownTimeout returns the maximum time to wait for in-flight operations during shutdown.
+func (c *Config) ShutdownTimeout() time.Duration {
+	return c.Global.ShutdownTimeout
+}
+
 // HealthPort returns the health server port.
 func (c *Config) HealthPort() int {
 	return c.Global.HealthPort
