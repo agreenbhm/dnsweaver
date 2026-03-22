@@ -3,6 +3,7 @@ package pihole
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -72,6 +73,16 @@ func (c *Config) Validate() error {
 	case ModeAPI:
 		if c.URL == "" {
 			errs = append(errs, "URL is required for API mode")
+		} else {
+			// Validate URL format and scheme
+			parsed, err := url.Parse(c.URL)
+			if err != nil {
+				errs = append(errs, fmt.Sprintf("invalid URL: %v", err))
+			} else if parsed.Scheme != "http" && parsed.Scheme != "https" {
+				errs = append(errs, "URL must start with http:// or https://")
+			} else if parsed.User != nil {
+				errs = append(errs, "URL must not contain embedded credentials")
+			}
 		}
 		if c.Password == "" {
 			errs = append(errs, "PASSWORD is required for API mode")

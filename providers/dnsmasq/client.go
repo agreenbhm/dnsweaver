@@ -131,8 +131,25 @@ func NewClient(configDir, configFile, reloadCommand, zone string, opts ...Client
 }
 
 // ConfigFilePath returns the full path to the dnsweaver config file.
+// The result is validated to ensure configFile doesn't escape configDir
+// via path traversal (e.g., "../../etc/passwd").
 func (c *Client) ConfigFilePath() string {
-	return filepath.Join(c.configDir, c.configFile)
+	fullPath := filepath.Join(c.configDir, c.configFile)
+	cleanPath := filepath.Clean(fullPath)
+	cleanDir := filepath.Clean(c.configDir)
+
+	// Ensure the resolved path stays within configDir
+	if !strings.HasPrefix(cleanPath, cleanDir+string(filepath.Separator)) && cleanPath != cleanDir {
+		// Path traversal detected — fall back to safe default
+		c.logger.Error("path traversal detected in config file path, using safe default",
+			slog.String("config_dir", c.configDir),
+			slog.String("config_file", c.configFile),
+			slog.String("resolved", cleanPath),
+		)
+		return filepath.Join(cleanDir, "dnsweaver.conf")
+	}
+
+	return cleanPath
 }
 
 // Ping checks if the config directory exists and is writable.
