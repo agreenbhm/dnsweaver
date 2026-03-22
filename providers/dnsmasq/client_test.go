@@ -74,6 +74,31 @@ func TestClient_ConfigFilePath(t *testing.T) {
 	}
 }
 
+func TestClient_ConfigFilePath_PathTraversal(t *testing.T) {
+	// Path traversal should be caught and return a safe default
+	client := NewClient("/etc/dnsmasq.d", "../../etc/passwd", "echo reload", "")
+
+	got := client.ConfigFilePath()
+	// Should NOT resolve to /etc/passwd
+	if got == "/etc/passwd" {
+		t.Error("ConfigFilePath() should prevent path traversal")
+	}
+	// Should fall back to safe default within configDir
+	if got != "/etc/dnsmasq.d/dnsweaver.conf" {
+		t.Errorf("ConfigFilePath() = %v, want /etc/dnsmasq.d/dnsweaver.conf", got)
+	}
+}
+
+func TestClient_ConfigFilePath_AbsoluteEscape(t *testing.T) {
+	// Absolute path in configFile should be caught
+	client := NewClient("/etc/dnsmasq.d", "/tmp/evil.conf", "echo reload", "")
+
+	got := client.ConfigFilePath()
+	if got == "/tmp/evil.conf" {
+		t.Error("ConfigFilePath() should prevent absolute path escape")
+	}
+}
+
 func TestClient_Ping(t *testing.T) {
 	tests := []struct {
 		name    string

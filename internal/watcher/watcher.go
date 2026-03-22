@@ -166,7 +166,12 @@ func (w *Watcher) watchLoop(ctx context.Context) {
 					slog.Duration("retry_in", w.config.ReconnectInterval),
 				)
 				metrics.DockerWatcherReconnects.Inc()
-				time.Sleep(w.config.ReconnectInterval)
+				// Use select for context-aware sleep so shutdown isn't blocked
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(w.config.ReconnectInterval):
+				}
 			}
 		}
 	}

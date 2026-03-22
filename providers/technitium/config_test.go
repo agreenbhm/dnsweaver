@@ -69,6 +69,33 @@ func TestConfig_Validate(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "invalid URL scheme",
+			config: Config{
+				URL:   "ftp://localhost:5380",
+				Token: "test-token",
+				Zone:  "example.com",
+			},
+			wantErr: true,
+		},
+		{
+			name: "URL with embedded credentials",
+			config: Config{
+				URL:   "http://admin:pass@localhost:5380",
+				Token: "test-token",
+				Zone:  "example.com",
+			},
+			wantErr: true,
+		},
+		{
+			name: "https URL is valid",
+			config: Config{
+				URL:   "https://dns.example.com",
+				Token: "test-token",
+				Zone:  "example.com",
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {

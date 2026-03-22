@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -46,6 +47,44 @@ type userAgentTransport struct {
 	logger    *slog.Logger
 }
 
+// sensitiveQueryParams lists query parameter names that may contain credentials.
+// These are redacted from URLs before logging to prevent secret leakage.
+var sensitiveQueryParams = map[string]bool{
+	"token":    true,
+	"auth":     true,
+	"password": true,
+	"key":      true,
+	"secret":   true,
+	"sid":      true,
+	"apikey":   true,
+}
+
+// sanitizeURL returns a URL string with sensitive query parameters redacted.
+// This prevents credentials from appearing in debug logs.
+func sanitizeURL(u *url.URL) string {
+	if u == nil {
+		return ""
+	}
+
+	query := u.Query()
+	redacted := false
+	for param := range query {
+		if sensitiveQueryParams[param] {
+			query.Set(param, "REDACTED")
+			redacted = true
+		}
+	}
+
+	if !redacted {
+		return u.String()
+	}
+
+	// Rebuild URL with redacted query
+	sanitized := *u
+	sanitized.RawQuery = query.Encode()
+	return sanitized.String()
+}
+
 // RoundTrip implements http.RoundTripper.
 func (t *userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Set User-Agent if not already set
@@ -53,21 +92,21 @@ func (t *userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error
 		req.Header.Set("User-Agent", t.userAgent)
 	}
 
-	// Debug log the request
+	// Debug log the request (with sensitive query params redacted)
 	if t.logger != nil {
 		t.logger.Debug("HTTP request",
 			slog.String("method", req.Method),
-			slog.String("url", req.URL.String()),
+			slog.String("url", sanitizeURL(req.URL)),
 		)
 	}
 
 	resp, err := t.base.RoundTrip(req)
 
-	// Debug log the response
+	// Debug log the response (with sensitive query params redacted)
 	if t.logger != nil && resp != nil {
 		t.logger.Debug("HTTP response",
 			slog.String("method", req.Method),
-			slog.String("url", req.URL.String()),
+			slog.String("url", sanitizeURL(req.URL)),
 			slog.Int("status", resp.StatusCode),
 		)
 	}

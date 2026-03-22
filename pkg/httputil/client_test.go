@@ -6,7 +6,9 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -271,5 +273,55 @@ func TestNewClientWithTransport_ZeroTimeout(t *testing.T) {
 
 	if client.Timeout != DefaultTimeout {
 		t.Errorf("expected default timeout %v, got %v", DefaultTimeout, client.Timeout)
+	}
+}
+
+func TestSanitizeURL_RedactsToken(t *testing.T) {
+	u, _ := url.Parse("http://dns:5380/api/records?token=secret123&zone=example.com")
+	result := sanitizeURL(u)
+
+	if strings.Contains(result, "secret123") {
+		t.Error("sanitized URL should not contain the token value")
+	}
+	if !strings.Contains(result, "token=REDACTED") {
+		t.Error("sanitized URL should contain token=REDACTED")
+	}
+	if !strings.Contains(result, "zone=example.com") {
+		t.Error("sanitized URL should preserve non-sensitive params")
+	}
+}
+
+func TestSanitizeURL_RedactsMultipleParams(t *testing.T) {
+	u, _ := url.Parse("http://pihole/admin/api.php?auth=abc123&password=hunter2&action=get")
+	result := sanitizeURL(u)
+
+	if strings.Contains(result, "abc123") || strings.Contains(result, "hunter2") {
+		t.Error("sanitized URL should not contain auth or password values")
+	}
+	if !strings.Contains(result, "auth=REDACTED") {
+		t.Error("expected auth=REDACTED")
+	}
+	if !strings.Contains(result, "password=REDACTED") {
+		t.Error("expected password=REDACTED")
+	}
+	if !strings.Contains(result, "action=get") {
+		t.Error("non-sensitive params should be preserved")
+	}
+}
+
+func TestSanitizeURL_NoSensitiveParams(t *testing.T) {
+	u, _ := url.Parse("http://example.com/api?zone=test&type=A")
+	original := u.String()
+	result := sanitizeURL(u)
+
+	if result != original {
+		t.Errorf("URL without sensitive params should be unchanged: got %s, want %s", result, original)
+	}
+}
+
+func TestSanitizeURL_NilURL(t *testing.T) {
+	result := sanitizeURL(nil)
+	if result != "" {
+		t.Errorf("nil URL should return empty string, got %q", result)
 	}
 }
