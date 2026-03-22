@@ -264,14 +264,14 @@ func TestCompareForHostname_FiltersCorrectly(t *testing.T) {
 	}
 }
 
-func TestCategorizeSameHostnameRecords(t *testing.T) {
+func TestCategorizeSameHostname(t *testing.T) {
 	records := []provider.Record{
 		{Hostname: "app.example.com", Type: provider.RecordTypeA, Target: "10.0.0.1"},
 		{Hostname: "app.example.com", Type: provider.RecordTypeA, Target: "10.0.0.2"},
 		{Hostname: "app.example.com", Type: provider.RecordTypeCNAME, Target: "other.example.com"},
 	}
 
-	sameType, differentType := CategorizeSameHostnameRecords(records, provider.RecordTypeA)
+	sameType, differentType := categorizeSameHostnameRecords(records, provider.RecordTypeA)
 
 	if len(sameType) != 2 {
 		t.Errorf("expected 2 same type records, got %d", len(sameType))
@@ -281,14 +281,14 @@ func TestCategorizeSameHostnameRecords(t *testing.T) {
 	}
 }
 
-func TestFindExactMatch(t *testing.T) {
+func TestFindExact(t *testing.T) {
 	records := []provider.Record{
 		{Hostname: "app.example.com", Type: provider.RecordTypeA, Target: "10.0.0.1"},
 		{Hostname: "app.example.com", Type: provider.RecordTypeA, Target: "10.0.0.2"},
 	}
 
 	// Should find exact match
-	record, found := FindExactMatch(records, "10.0.0.1", provider.RecordTypeA, nil)
+	record, found := findExactMatch(records, "10.0.0.1", provider.RecordTypeA, nil)
 	if !found {
 		t.Error("expected to find exact match")
 	}
@@ -297,19 +297,19 @@ func TestFindExactMatch(t *testing.T) {
 	}
 
 	// Should not find non-existent
-	_, found = FindExactMatch(records, "10.0.0.3", provider.RecordTypeA, nil)
+	_, found = findExactMatch(records, "10.0.0.3", provider.RecordTypeA, nil)
 	if found {
 		t.Error("expected not to find non-existent record")
 	}
 
 	// Should not match wrong type
-	_, found = FindExactMatch(records, "10.0.0.1", provider.RecordTypeCNAME, nil)
+	_, found = findExactMatch(records, "10.0.0.1", provider.RecordTypeCNAME, nil)
 	if found {
 		t.Error("expected not to find wrong type")
 	}
 }
 
-func TestFindStaleSRVRecords(t *testing.T) {
+func TestFindStaleSRV(t *testing.T) {
 	records := []provider.Record{
 		{
 			Hostname: "_http._tcp.example.com",
@@ -327,7 +327,7 @@ func TestFindStaleSRVRecords(t *testing.T) {
 
 	// Find records with same target but different SRV data
 	desiredSRV := &provider.SRVData{Priority: 10, Weight: 5, Port: 80}
-	stale := FindStaleSRVRecords(records, "server.example.com", desiredSRV)
+	stale := findStaleSRVRecords(records, "server.example.com", desiredSRV)
 
 	if len(stale) != 1 {
 		t.Errorf("expected 1 stale record, got %d", len(stale))

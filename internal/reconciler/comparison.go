@@ -165,10 +165,10 @@ func recordNeedsUpdate(existing, desired provider.Record) bool {
 	return false
 }
 
-// CategorizeSameHostnameRecords groups records by whether they match the desired type.
+// categorizeSameHostnameRecords groups records by whether they match the desired type.
 // Returns (sameType, differentType) slices.
 // This is used when checking for type conflicts before creating a record.
-func CategorizeSameHostnameRecords(records []provider.Record, desiredType provider.RecordType) (sameType, differentType []provider.Record) {
+func categorizeSameHostnameRecords(records []provider.Record, desiredType provider.RecordType) (sameType, differentType []provider.Record) {
 	for _, r := range records {
 		if r.Type == desiredType {
 			sameType = append(sameType, r)
@@ -179,9 +179,9 @@ func CategorizeSameHostnameRecords(records []provider.Record, desiredType provid
 	return
 }
 
-// FindExactMatch finds a record with matching target (and SRV data if applicable).
+// findExactMatch finds a record with matching target (and SRV data if applicable).
 // Returns the matching record and true if found, or empty record and false if not.
-func FindExactMatch(records []provider.Record, target string, recordType provider.RecordType, srvData *provider.SRVData) (provider.Record, bool) {
+func findExactMatch(records []provider.Record, target string, recordType provider.RecordType, srvData *provider.SRVData) (provider.Record, bool) {
 	for _, r := range records {
 		if r.Type != recordType {
 			continue
@@ -202,9 +202,9 @@ func FindExactMatch(records []provider.Record, target string, recordType provide
 	return provider.Record{}, false
 }
 
-// FindStaleSRVRecords finds SRV records with matching target but different priority/weight/port.
+// findStaleSRVRecords finds SRV records with matching target but different priority/weight/port.
 // These are records that need to be deleted and recreated with new SRV data.
-func FindStaleSRVRecords(records []provider.Record, target string, desiredSRV *provider.SRVData) []provider.Record {
+func findStaleSRVRecords(records []provider.Record, target string, desiredSRV *provider.SRVData) []provider.Record {
 	var stale []provider.Record
 	for _, r := range records {
 		if r.Type != provider.RecordTypeSRV {

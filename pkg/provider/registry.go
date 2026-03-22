@@ -110,7 +110,7 @@ func (r *Registry) CreateInstance(cfg ProviderInstanceConfig) error {
 		Name:           cfg.Name,
 		ProviderConfig: cfg.ProviderConfig,
 		HTTP: HTTPConfig{
-			// TODO: These will be populated from GlobalConfig in a future phase
+			// HTTP config populated at factory level; GlobalConfig integration deferred
 			Logger: r.logger,
 		},
 	}

@@ -178,7 +178,7 @@ func (p *Provider) Create(ctx context.Context, record provider.Record) error {
 		return nil
 	case provider.RecordTypeSRV:
 		// dnsmasq supports srv-host= directive
-		// TODO: implement SRV support in a future version
+		// SRV support deferred to post-v1.0 (#133)
 		return fmt.Errorf("SRV records not yet supported by dnsmasq provider")
 	default:
 		return fmt.Errorf("unsupported record type: %s", record.Type)

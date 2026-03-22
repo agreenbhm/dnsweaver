@@ -280,13 +280,13 @@ func (c *Client) buildHostKeyCallback() (ssh.HostKeyCallback, error) {
 	// If strict host key checking is enabled, require a valid host key callback configuration
 	if c.config.StrictHostKeyChecking {
 		if c.config.HostKeyCallback == "" {
-			// TODO: Add support for loading from known_hosts file
+			// known_hosts file loading deferred to #153
 			return nil, errors.New("strict host key checking enabled but no known_hosts file configured - set HOST_KEY_CALLBACK to a known_hosts file path")
 		}
 		if c.config.HostKeyCallback == "ignore" {
 			return nil, errors.New("strict host key checking enabled but HOST_KEY_CALLBACK is set to 'ignore' - these settings conflict")
 		}
-		// TODO: Load from known_hosts file at c.config.HostKeyCallback path
+		// known_hosts file loading at c.config.HostKeyCallback path (#153)
 		return nil, errors.New("strict host key checking enabled but known_hosts loading not yet implemented")
 	}
 
