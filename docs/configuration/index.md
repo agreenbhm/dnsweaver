@@ -44,6 +44,14 @@ dnsweaver is configured entirely through environment variables, making it ideal 
 
     [:octicons-arrow-right-24: Operational Modes](modes.md)
 
+-   :material-dns:{ .lg .middle } **Multi-Instance**
+
+    ---
+
+    Manage multiple DNS providers simultaneously with split-horizon, zone separation, and webhook patterns.
+
+    [:octicons-arrow-right-24: Multi-Instance Guide](multi-instance.md)
+
 </div>
 
 ## Quick Reference

@@ -50,6 +50,7 @@ Thank you for your interest in contributing to dnsweaver! This section provides 
 
 | Guide | Description |
 | :---- | :---------- |
+| [Architecture Overview](architecture.md) | System design, data flow, and package structure |
 | [Development Setup](development.md) | Set up your local environment |
 | [Adding a Provider](adding-provider.md) | Implement a new DNS provider |
 | [Adding a Source](adding-source.md) | Implement a new hostname source |
