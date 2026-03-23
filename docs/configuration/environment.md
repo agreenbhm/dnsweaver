@@ -23,6 +23,11 @@ dnsweaver --config /etc/dnsweaver/config.yml
 | `DNSWEAVER_INSTANCES` | *(required)* | Comma-separated list of provider instance names |
 | `DNSWEAVER_LOG_LEVEL` | `info` | Logging level: `debug`, `info`, `warn`, `error` |
 | `DNSWEAVER_LOG_FORMAT` | `json` | Log format: `json`, `text` |
+| `DNSWEAVER_LOG_FILE` | *(empty)* | Path to log file (empty = stdout only) |
+| `DNSWEAVER_LOG_MAX_SIZE` | `100` | Max log file size in MB before rotation |
+| `DNSWEAVER_LOG_MAX_BACKUPS` | `5` | Number of old log files to keep |
+| `DNSWEAVER_LOG_MAX_AGE` | `30` | Days to retain old log files |
+| `DNSWEAVER_LOG_COMPRESS` | `true` | Compress rotated log files |
 | `DNSWEAVER_DRY_RUN` | `false` | Preview changes without modifying DNS |
 | `DNSWEAVER_CLEANUP_ORPHANS` | `true` | Delete DNS records when workloads are removed |
 | `DNSWEAVER_CLEANUP_ON_STOP` | `true` | Delete DNS records when containers stop |
@@ -30,6 +35,7 @@ dnsweaver --config /etc/dnsweaver/config.yml
 | `DNSWEAVER_ADOPT_EXISTING` | `false` | Adopt existing DNS records by creating ownership TXT |
 | `DNSWEAVER_DEFAULT_TTL` | `300` | Default TTL for DNS records (seconds) |
 | `DNSWEAVER_RECONCILE_INTERVAL` | `60s` | Periodic reconciliation interval |
+| `DNSWEAVER_SHUTDOWN_TIMEOUT` | `30s` | Graceful shutdown timeout for in-flight updates |
 | `DNSWEAVER_HEALTH_PORT` | `8080` | Port for health/metrics endpoints |
 
 !!! note "Deprecated Variable"
@@ -116,6 +122,11 @@ Replace `{NAME}` with your instance name. For example, instance `internal-dns` u
 !!! warning "Deprecated Variable"
     `DNSWEAVER_SOURCE` (singular) is deprecated and will be removed in v2.0. Use `DNSWEAVER_SOURCES` (plural) instead.
     When both are set, `DNSWEAVER_SOURCES` takes precedence.
+
+### Traefik File Source Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
 | `DNSWEAVER_SOURCE_TRAEFIK_FILE_PATHS` | *(none)* | Paths to Traefik config directories/files |
 | `DNSWEAVER_SOURCE_TRAEFIK_FILE_PATTERN` | `*.yml,*.yaml,*.toml` | Glob pattern for config files |
 | `DNSWEAVER_SOURCE_TRAEFIK_POLL_INTERVAL` | `60s` | File re-scan interval |

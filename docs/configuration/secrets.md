@@ -89,8 +89,6 @@ Providers that support SSH remote management (e.g., [dnsmasq](../providers/dnsma
 | Variable | File Suffix | Description |
 |----------|-------------|-------------|
 | `DNSWEAVER_{NAME}_SSH_KEY_FILE` | `DNSWEAVER_{NAME}_SSH_KEY_FILE_FILE` | Path to SSH private key |
-| `DNSWEAVER_{NAME}_SSH_KEY_DATA` | `DNSWEAVER_{NAME}_SSH_KEY_DATA_FILE` | SSH private key content |
-| `DNSWEAVER_{NAME}_SSH_KEY_PASSPHRASE` | `DNSWEAVER_{NAME}_SSH_KEY_PASSPHRASE_FILE` | Passphrase for encrypted keys |
 | `DNSWEAVER_{NAME}_SSH_PASSWORD` | `DNSWEAVER_{NAME}_SSH_PASSWORD_FILE` | SSH password |
 
 ### SSH Key via Docker Secret
@@ -101,8 +99,8 @@ To pass an SSH private key as a Docker secret:
 services:
   dnsweaver:
     environment:
-      # Read the SSH key content from a Docker secret
-      - DNSWEAVER_ROUTER_SSH_KEY_DATA_FILE=/run/secrets/router_ssh_key
+      # Read the SSH key path from a Docker secret
+      - DNSWEAVER_ROUTER_SSH_KEY_FILE_FILE=/run/secrets/router_ssh_key
     secrets:
       - router_ssh_key
 

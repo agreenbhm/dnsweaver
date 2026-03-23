@@ -73,7 +73,7 @@ extra:
       link: https://hub.docker.com/r/maxamill/dnsweaver
       name: dnsweaver on Docker Hub
     - icon: simple/gitlab
-      link: https://github.com/maxfield-allison/dnsweaver
+      link: https://gitlab.bluewillows.net/root/dnsweaver
       name: Source Repository
 
 markdown_extensions:
@@ -125,6 +125,7 @@ nav:
       - Domain Matching: configuration/domains.md
       - Operational Modes: configuration/modes.md
       - Docker Secrets: configuration/secrets.md
+      - Multi-Instance: configuration/multi-instance.md
   - Providers:
       - providers/index.md
       - Technitium: providers/technitium.md
@@ -146,10 +147,16 @@ nav:
       - Docker Swarm: deployment/swarm.md
       - Kubernetes: deployment/kubernetes.md
       - Split-Horizon DNS: deployment/split-horizon.md
+      - Dual-Stack (IPv4/IPv6): deployment/dual-stack.md
   - Observability: observability.md
   - FAQ: faq.md
+  - Testing:
+      - testing/README.md
+      - Test Cases: testing/TEST-CASES.md
+      - Release Checklist: testing/RELEASE-CHECKLIST.md
   - Contributing:
       - contributing/index.md
       - Development Setup: contributing/development.md
+      - Architecture: contributing/architecture.md
       - Adding a Provider: contributing/adding-provider.md
       - Adding a Source: contributing/adding-source.md

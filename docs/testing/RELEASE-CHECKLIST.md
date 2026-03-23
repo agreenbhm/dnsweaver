@@ -113,7 +113,7 @@ For each source enabled in the test environment:
 | New feature (backward-compatible) | MINOR | New provider, new source |
 | Bug fix | PATCH | Fixed crash, corrected behavior |
 
-See the [versioning documentation](../contributing/versioning.md) for full details.
+See the [CHANGELOG](../../CHANGELOG.md) for version history.
 
 ## Release Workflow
 

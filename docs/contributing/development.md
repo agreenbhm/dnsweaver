@@ -21,6 +21,7 @@ dnsweaver/
 │   ├── kubernetes/         # Kubernetes watcher and resource converters
 │   └── reconciler/         # Core reconciliation logic
 ├── pkg/
+│   ├── dnsupdate/          # RFC 2136 dynamic DNS update utilities
 │   ├── httputil/           # HTTP client utilities
 │   ├── provider/           # Provider interface definitions
 │   ├── source/             # Source interface definitions
@@ -61,7 +62,7 @@ make docker-build
 make test
 
 # Run tests with coverage
-make test-coverage
+make test-cover
 
 # Run linter
 make lint

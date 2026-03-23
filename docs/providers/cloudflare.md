@@ -28,13 +28,16 @@ environment:
 | `TYPE` | Yes | - | Must be `cloudflare` |
 | `TOKEN` | Yes | - | API token |
 | `TOKEN_FILE` | Alt | - | Path to file containing API token |
-| `ZONE` | Yes | - | DNS zone (domain name) |
+| `ZONE_ID` | No* | - | Cloudflare Zone ID (alternative to `ZONE`) |
+| `ZONE` | No* | - | DNS zone name for zone lookup |
 | `RECORD_TYPE` | Yes | - | `A`, `AAAA`, `CNAME`, or `TXT` |
 | `TARGET` | Yes | - | Record value |
 | `DOMAINS` | Yes | - | Glob patterns to match |
 | `EXCLUDE_DOMAINS` | No | - | Patterns to exclude |
-| `TTL` | No | `1` | TTL in seconds (1 = auto) |
-| `PROXIED` | No | `false` | Enable Cloudflare proxy |
+| `TTL` | No | `300` | TTL in seconds |
+| `PROXIED` | No | `true` | Enable Cloudflare proxy |
+
+\* Either `ZONE_ID` or `ZONE` must be set. If both are provided, `ZONE_ID` takes precedence.
 
 ## Creating an API Token
 

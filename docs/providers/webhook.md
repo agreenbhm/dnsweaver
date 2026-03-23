@@ -31,14 +31,17 @@ environment:
 | `URL` | Yes | - | Base URL for webhook endpoint |
 | `AUTH_TOKEN` | No | - | Bearer token for authentication |
 | `AUTH_TOKEN_FILE` | Alt | - | Path to token file |
-| `AUTH_HEADER` | No | `Authorization` | Header name for auth token |
+| `AUTH_HEADER` | No | *(empty)* | Custom header name for auth token (e.g., `X-API-Key`) |
 | `RECORD_TYPE` | Yes | - | Record type for the provider |
 | `TARGET` | Yes | - | Record value |
 | `DOMAINS` | Yes | - | Glob patterns to match |
 | `EXCLUDE_DOMAINS` | No | - | Patterns to exclude |
-| `CREATE_METHOD` | No | `POST` | HTTP method for create |
-| `DELETE_METHOD` | No | `DELETE` | HTTP method for delete |
-| `TIMEOUT` | No | `30s` | Request timeout |
+| `TIMEOUT` | No | `30s` | HTTP request timeout |
+| `RETRIES` | No | `3` | Number of retry attempts for transient failures |
+| `RETRY_DELAY` | No | `1s` | Base delay between retry attempts |
+
+!!! note
+    When `AUTH_HEADER` is set, `AUTH_TOKEN` is required. The token is sent as the header value (e.g., `X-API-Key: your-token`). If `AUTH_HEADER` is empty, no authentication header is sent.
 
 ## Webhook Payloads
 

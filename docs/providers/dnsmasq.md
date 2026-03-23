@@ -27,13 +27,15 @@ volumes:
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `TYPE` | Yes | - | Must be `dnsmasq` |
-| `CONFIG_DIR` | Yes | - | Path to dnsmasq config directory |
+| `CONFIG_DIR` | No | `/etc/dnsmasq.d` | Path to dnsmasq config directory |
 | `CONFIG_FILE` | No | `dnsweaver.conf` | Filename for managed records |
+| `RELOAD_COMMAND` | No | `systemctl reload dnsmasq` | Command to reload dnsmasq |
+| `ZONE` | No | - | DNS zone for record filtering |
+| `TTL` | No | `300` | Record TTL in seconds |
 | `RECORD_TYPE` | Yes | - | `A`, `AAAA`, or `CNAME` |
 | `TARGET` | Yes | - | Record value |
 | `DOMAINS` | Yes | - | Glob patterns to match |
 | `EXCLUDE_DOMAINS` | No | - | Patterns to exclude |
-| `RELOAD_COMMAND` | No | - | Command to reload dnsmasq |
 
 ### SSH Configuration
 
@@ -45,19 +47,13 @@ When managing a remote dnsmasq instance, add these variables to enable SSH mode:
 | `SSH_PORT` | No | `22` | SSH server port |
 | `SSH_USER` | Yes* | - | SSH username |
 | `SSH_KEY_FILE` | No† | - | Path to SSH private key file |
-| `SSH_KEY_DATA` | No† | - | SSH private key content (inline) |
-| `SSH_KEY_PASSPHRASE` | No | - | Passphrase for encrypted keys |
 | `SSH_PASSWORD` | No† | - | SSH password |
-| `SSH_TIMEOUT` | No | `30` | Connection timeout in seconds |
-| `SSH_KEEPALIVE_INTERVAL` | No | `15` | Keepalive interval in seconds (0 to disable) |
-| `SSH_HOST_KEY_CALLBACK` | No | - | `ignore` or path to `known_hosts` file |
-| `SSH_STRICT_HOST_KEY_CHECKING` | No | `false` | Enable strict host key verification |
 
 \* Required when SSH mode is enabled (any SSH variable is set).
 
-† At least one authentication method is required: `SSH_KEY_FILE`, `SSH_KEY_DATA`, or `SSH_PASSWORD`. Key-based authentication is strongly recommended.
+† At least one authentication method is required: `SSH_KEY_FILE` or `SSH_PASSWORD`. Key-based authentication is strongly recommended.
 
-All SSH variables support the `_FILE` suffix for [Docker secrets](../configuration/secrets.md). For example, use `SSH_KEY_FILE_FILE` to read the private key path from a secret, or `SSH_PASSWORD_FILE` to read the password from a secret.
+`SSH_KEY_FILE` and `SSH_PASSWORD` support the `_FILE` suffix for [Docker secrets](../configuration/secrets.md). For example, use `SSH_KEY_FILE_FILE` to read the private key path from a secret, or `SSH_PASSWORD_FILE` to read the password from a secret.
 
 ## How It Works
 
@@ -195,18 +191,7 @@ secrets:
   - router_ssh_key
 ```
 
-#### 2. Inline Key Data
-
-Provide the private key content directly (useful with Docker secrets):
-
-```yaml
-environment:
-  - DNSWEAVER_ROUTER_SSH_KEY_DATA_FILE=/run/secrets/router_ssh_key
-secrets:
-  - router_ssh_key
-```
-
-#### 3. Password Authentication
+#### 2. Password Authentication
 
 Use password auth as a fallback (not recommended for production):
 
@@ -217,40 +202,8 @@ secrets:
   - router_password
 ```
 
-### Encrypted Keys
-
-If your SSH key is passphrase-protected, provide the passphrase:
-
-```yaml
-environment:
-  - DNSWEAVER_ROUTER_SSH_KEY_FILE=/ssh/id_ed25519
-  - DNSWEAVER_ROUTER_SSH_KEY_PASSPHRASE_FILE=/run/secrets/key_passphrase
-```
-
-### Connection Tuning
-
-Adjust timeouts and keepalive for slow or unreliable networks:
-
-```yaml
-environment:
-  - DNSWEAVER_ROUTER_SSH_TIMEOUT=60          # Connection timeout in seconds
-  - DNSWEAVER_ROUTER_SSH_KEEPALIVE_INTERVAL=30  # Keepalive interval (0 to disable)
-```
-
-### Host Key Verification
-
-By default, host key verification is **disabled** for ease of setup. For production environments, consider using a `known_hosts` file:
-
-```yaml
-environment:
-  - DNSWEAVER_ROUTER_SSH_HOST_KEY_CALLBACK=/ssh/known_hosts
-  - DNSWEAVER_ROUTER_SSH_STRICT_HOST_KEY_CHECKING=true
-volumes:
-  - ./ssh_keys/known_hosts:/ssh/known_hosts:ro
-```
-
-!!! warning
-    Disabling host key verification (`SSH_STRICT_HOST_KEY_CHECKING=false`) is insecure and vulnerable to man-in-the-middle attacks. Only use this for trusted internal networks.
+!!! note
+    The dnsmasq provider uses `InsecureIgnoreHostKey` for SSH connections. This is suitable for trusted internal networks. Future versions may add configurable host key verification.
 
 ### Docker Compose with SSH
 
@@ -383,16 +336,8 @@ Verify SSH connectivity from the dnsweaver container:
 ### SSH Authentication Failed
 
 - **Key file:** Verify the key file is mounted correctly and readable (`chmod 600`)
-- **Key data:** Ensure the full key content is provided (including `-----BEGIN` and `-----END` lines)
 - **Password:** Confirm the remote host allows password authentication
-- **Passphrase:** If the key is encrypted, provide `SSH_KEY_PASSPHRASE`
 
 ### SSH Timeout
 
-Increase the timeout for slow connections:
-
-```yaml
-- DNSWEAVER_ROUTER_SSH_TIMEOUT=60
-```
-
-If connections drop during long idle periods, ensure keepalive is enabled (default: 15 seconds).
+If SSH connections are timing out, verify that the remote host is reachable and the SSH service is running. Check firewall rules and network connectivity.

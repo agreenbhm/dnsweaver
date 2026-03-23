@@ -56,7 +56,12 @@ volumes:
 | `URL` | API mode | - | Pi-hole web interface URL |
 | `PASSWORD` | API mode | - | Web interface password |
 | `PASSWORD_FILE` | API alt | - | Path to password file |
-| `CONFIG_DIR` | File mode | - | Path to Pi-hole config directory |
+| `API_VERSION` | No | `auto` | Pi-hole API version: `v5`, `v6`, or `auto` |
+| `CONFIG_DIR` | File mode | `/etc/pihole` | Path to Pi-hole config directory |
+| `CONFIG_FILE` | File mode | `custom.list` | Filename for managed records |
+| `RELOAD_COMMAND` | File mode | `pihole restartdns reload-lists` | Command to reload after file changes |
+| `ZONE` | No | - | DNS zone for record filtering |
+| `TTL` | No | `300` | Record TTL in seconds |
 | `RECORD_TYPE` | Yes | - | `A`, `AAAA`, or `CNAME` |
 | `TARGET` | Yes | - | Record value |
 | `DOMAINS` | Yes | - | Glob patterns to match |
