@@ -74,11 +74,42 @@ Then reference them in your stack file exactly as shown above.
 
 Any environment variable that accepts sensitive data supports the `_FILE` suffix:
 
+### Provider Credentials
+
 | Variable | File Suffix |
 |----------|-------------|
 | `DNSWEAVER_{NAME}_TOKEN` | `DNSWEAVER_{NAME}_TOKEN_FILE` |
 | `DNSWEAVER_{NAME}_PASSWORD` | `DNSWEAVER_{NAME}_PASSWORD_FILE` |
 | `DNSWEAVER_{NAME}_AUTH_TOKEN` | `DNSWEAVER_{NAME}_AUTH_TOKEN_FILE` |
+
+### SSH Authentication
+
+Providers that support SSH remote management (e.g., [dnsmasq](../providers/dnsmasq.md#ssh-remote-management)) use these variables:
+
+| Variable | File Suffix | Description |
+|----------|-------------|-------------|
+| `DNSWEAVER_{NAME}_SSH_KEY_FILE` | `DNSWEAVER_{NAME}_SSH_KEY_FILE_FILE` | Path to SSH private key |
+| `DNSWEAVER_{NAME}_SSH_KEY_DATA` | `DNSWEAVER_{NAME}_SSH_KEY_DATA_FILE` | SSH private key content |
+| `DNSWEAVER_{NAME}_SSH_KEY_PASSPHRASE` | `DNSWEAVER_{NAME}_SSH_KEY_PASSPHRASE_FILE` | Passphrase for encrypted keys |
+| `DNSWEAVER_{NAME}_SSH_PASSWORD` | `DNSWEAVER_{NAME}_SSH_PASSWORD_FILE` | SSH password |
+
+### SSH Key via Docker Secret
+
+To pass an SSH private key as a Docker secret:
+
+```yaml
+services:
+  dnsweaver:
+    environment:
+      # Read the SSH key content from a Docker secret
+      - DNSWEAVER_ROUTER_SSH_KEY_DATA_FILE=/run/secrets/router_ssh_key
+    secrets:
+      - router_ssh_key
+
+secrets:
+  router_ssh_key:
+    file: ./ssh_keys/router_id_ed25519
+```
 
 ## Secret File Format
 
