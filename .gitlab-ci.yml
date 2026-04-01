@@ -151,10 +151,12 @@ security:container-scan:
     # Block on CRITICAL/HIGH (must fix before release)
     - trivy image --exit-code 1 --severity CRITICAL,HIGH
         --ignore-unfixed
+        --ignorefile .trivyignore
         --format table
         "$IMAGE:$TAG-amd64"
     # Warn on MEDIUM/LOW (track, don't block)
     - trivy image --exit-code 0 --severity MEDIUM,LOW
+        --ignorefile .trivyignore
         --format table
         "$IMAGE:$TAG-amd64"
   rules: *rules-docker

@@ -1,0 +1,11 @@
+# Trivy CVE Ignore List for dnsweaver
+# https://aquasecurity.github.io/trivy/latest/docs/configuration/filtering/#by-finding-ids
+
+# CVE-2026-34040: Docker Engine AuthZ plugin bypass in github.com/docker/docker v28.5.2
+# Fix available in v29.3.1 (github.com/moby/moby/v2), but:
+#   1. Only beta releases on Go proxy (v2.0.0-beta.0 through beta.8)
+#   2. Requires Go 1.25.5+ and full import path migration to moby/moby/v2
+#   3. CVE is a daemon-side AuthZ plugin bypass — dnsweaver is a client-only consumer
+#      that uses the Docker SDK to read container/service state (no AuthZ interaction)
+# Reassess when moby/moby/v2 reaches stable release.
+CVE-2026-34040
