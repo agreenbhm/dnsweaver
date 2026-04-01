@@ -50,7 +50,7 @@ workflow:
 
 validate:branch-name:
   stage: validate
-  image: alpine:3.20
+  image: alpine:3.21
   script:
     - |
       [ "$CI_COMMIT_BRANCH" = "main" ] || [ "$CI_COMMIT_BRANCH" = "develop" ] && exit 0
@@ -62,7 +62,7 @@ validate:branch-name:
 
 validate:commit-message:
   stage: validate
-  image: alpine:3.20
+  image: alpine:3.21
   script:
     - |
       MSG=$(echo "$CI_COMMIT_MESSAGE" | head -1)
@@ -131,6 +131,29 @@ security:gitleaks:
     - gitleaks detect --source . --config .gitleaks.toml --verbose --no-git
   rules: *rules-code-changes
   allow_failure: false  # Block on secrets detection
+
+# Container image vulnerability scan (runs after Docker build)
+security:container-scan:
+  stage: security
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  needs: ["docker:build:amd64"]
+  script:
+    - source build.env
+    # Block on CRITICAL/HIGH (must fix before release)
+    - trivy image --exit-code 1 --severity CRITICAL,HIGH
+        --ignore-unfixed
+        --format table
+        $IMAGE:$TAG-amd64
+    # Warn on MEDIUM/LOW (track, don't block)
+    - trivy image --exit-code 0 --severity MEDIUM,LOW
+        --format table
+        $IMAGE:$TAG-amd64
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"
+  allow_failure: false
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Build
@@ -246,7 +269,7 @@ docker:manifest:
 
 .mirror-base:
   stage: mirror
-  image: alpine:3.20
+  image: alpine:3.21
   needs:
     - job: docker:manifest
       optional: true
@@ -293,7 +316,7 @@ github:mirror:tags:
 
 .deploy-base:
   stage: deploy
-  image: alpine:3.20
+  image: alpine:3.21
   before_script:
     - apk add --no-cache openssh-client
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh
@@ -339,7 +362,7 @@ deploy:production:
 
 integration:smoke:
   stage: integration
-  image: alpine:3.20
+  image: alpine:3.21
   needs:
     - job: deploy:dev
       optional: true
@@ -400,7 +423,7 @@ github:build:arm64:
 
 github:release:
   stage: github-release
-  image: alpine:3.20
+  image: alpine:3.21
   needs: [github:build:amd64, github:build:arm64, github:mirror:tags]
   before_script:
     - apk add --no-cache curl jq docker-cli

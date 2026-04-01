@@ -17,7 +17,7 @@
 # =============================================================================
 
 ARG GO_VERSION=1.25
-ARG ALPINE_VERSION=3.20
+ARG ALPINE_VERSION=3.21
 
 # -----------------------------------------------------------------------------
 # Stage 1: Go Builder (Multi-Arch Cross-Compilation)
@@ -63,8 +63,8 @@ LABEL org.opencontainers.image.title="dnsweaver" \
     org.opencontainers.image.source="https://gitlab.bluewillows.net/root/dnsweaver" \
     org.opencontainers.image.vendor="bluewillows.net"
 
-# Install runtime dependencies
-RUN apk add --no-cache ca-certificates tzdata wget
+# Install runtime dependencies (no wget/curl — reduces attack surface)
+RUN apk add --no-cache ca-certificates tzdata
 
 # Create non-root user
 RUN addgroup -g 1000 dnsweaver && \
@@ -82,9 +82,9 @@ ENV DNSWEAVER_LOG_LEVEL="info" \
     DNSWEAVER_DRY_RUN="false" \
     DNSWEAVER_HEALTH_PORT="8080"
 
-# Health check
+# Health check (using busybox nc — no wget needed)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget -qO- http://localhost:8080/health || exit 1
+    CMD ["/bin/sh", "-c", "echo -e 'GET /health HTTP/1.0\r\nHost: localhost\r\n\r\n' | nc localhost 8080 | grep -q '200 OK' || exit 1"]
 
 # Run as non-root user
 # Note: When mounting Docker socket, ensure socket has appropriate permissions
