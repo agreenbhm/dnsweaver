@@ -68,10 +68,11 @@ LABEL org.opencontainers.image.title="dnsweaver" \
     org.opencontainers.image.base.name="dhi.io/alpine-base:3.23"
 
 # Install runtime dependencies (no wget/curl — reduces attack surface)
-# DHI base includes ca-certificates; add tzdata for timezone support
-RUN apk add --no-cache ca-certificates tzdata
+# DHI base includes ca-certificates and busybox utilities but no apk package manager
+# Copy tzdata from builder for timezone support
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 
-# Create non-root user
+# Create non-root user (busybox adduser/addgroup available in DHI)
 RUN addgroup -g 1000 dnsweaver && \
     adduser -u 1000 -G dnsweaver -s /bin/sh -D dnsweaver
 
