@@ -17,7 +17,7 @@
 # =============================================================================
 
 ARG GO_VERSION=1.25
-ARG DHI_ALPINE_VERSION=3.23
+ARG ALPINE_VERSION=3.23
 
 # -----------------------------------------------------------------------------
 # Stage 1: Go Builder (Multi-Arch Cross-Compilation)
@@ -53,29 +53,21 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} go build \
 RUN ls -la dnsweaver && file dnsweaver || true
 
 # -----------------------------------------------------------------------------
-# Stage 2: Runtime (Docker Hardened Image — Alpine)
-# DHI: Zero published CVEs, CIS-compliant, signed provenance + SBOM
-# Requires Docker Hub auth (dhi.io registry)
-# https://hub.docker.com/hardened-images/catalog/dhi/alpine-base
+# Stage 2: Minimal Runtime (Alpine)
 # -----------------------------------------------------------------------------
-FROM dhi.io/alpine-base:${DHI_ALPINE_VERSION}
+FROM alpine:${ALPINE_VERSION}
 
 # Labels
 LABEL org.opencontainers.image.title="dnsweaver" \
     org.opencontainers.image.description="Automatic DNS record management for Docker and Kubernetes workloads" \
     org.opencontainers.image.source="https://gitlab.bluewillows.net/root/dnsweaver" \
     org.opencontainers.image.vendor="bluewillows.net" \
-    org.opencontainers.image.base.name="dhi.io/alpine-base:3.23"
-
-# DHI CIS images default to nonroot (uid 65532) — switch to root for setup
-USER root
+    org.opencontainers.image.base.name="alpine:3.23"
 
 # Install runtime dependencies (no wget/curl — reduces attack surface)
-# DHI base includes ca-certificates and busybox utilities but no apk package manager
-# Copy tzdata from builder for timezone support
-COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+RUN apk add --no-cache ca-certificates tzdata
 
-# Create non-root user (busybox adduser/addgroup available in DHI)
+# Create non-root user
 RUN addgroup -g 1000 dnsweaver && \
     adduser -u 1000 -G dnsweaver -s /bin/sh -D dnsweaver
 

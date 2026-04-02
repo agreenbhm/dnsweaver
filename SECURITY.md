@@ -50,9 +50,8 @@ dnsweaver follows these security practices:
   database on every pipeline
 - **Secret detection:** Gitleaks scans all commits for leaked credentials
 - **Static analysis:** `gosec` runs as part of the linting pipeline
-- **Hardened runtime image:** Production images are based on
-  [Docker Hardened Images](https://hub.docker.com/hardened-images/catalog/dhi/alpine-base)
-  (Alpine), run as non-root, and contain no shell utilities beyond busybox
+- **Hardened runtime image:** Production images are based on Alpine Linux,
+  run as non-root, and contain no unnecessary packages
 - **Minimal attack surface:** No wget, curl, or unnecessary packages in
   production images
 - **Input validation:** Shell metacharacter filtering, HTTP response body limits,
