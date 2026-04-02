@@ -115,7 +115,27 @@ security:govulncheck:
   stage: security
   script:
     - go install golang.org/x/vuln/cmd/govulncheck@latest
-    - govulncheck ./...
+    # govulncheck has no ignore/suppression mechanism (unlike trivy's .trivyignore).
+    # Wrapper: pass if ONLY known-unfixed vulns are found; fail on any new ones.
+    # Known unfixed (docker/docker — no fix available, review 2026-07-01):
+    #   GO-2026-4887 - Moby AuthZ plugin bypass (oversized request bodies)
+    #   GO-2026-4883 - Moby off-by-one plugin privilege validation
+    - |
+      KNOWN_VULNS="GO-2026-4887|GO-2026-4883"
+      govulncheck ./... 2>&1 | tee govulncheck.txt; RC=${PIPESTATUS[0]}
+      if [ "$RC" -eq 0 ]; then
+        echo "✅ No vulnerabilities found"
+        exit 0
+      fi
+      FOUND=$(grep -oE 'GO-[0-9]+-[0-9]+' govulncheck.txt | sort -u)
+      UNKNOWN=$(echo "$FOUND" | grep -vE "^($KNOWN_VULNS)$" || true)
+      if [ -n "$UNKNOWN" ]; then
+        echo "❌ NEW vulnerabilities found: $UNKNOWN"
+        exit 1
+      fi
+      echo "⚠️  Only known-unfixed vulnerabilities found (docker/docker SDK, no upstream fix):"
+      echo "$FOUND"
+      echo "Review by: 2026-07-01 or when moby/moby/v2 reaches stable release"
   rules: *rules-code-changes
   allow_failure: false
 

@@ -14,7 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for reduced CVE surface and latest security patches
 - **CI security hardening**: `security:trivy` (filesystem scan) and
   `security:govulncheck` now block pipeline on CRITICAL/HIGH findings instead
-  of running in warn-only mode
+  of running in warn-only mode. `govulncheck` uses a wrapper that allows
+  known-unfixed upstream vulnerabilities (docker/docker SDK) while blocking
+  on any new findings
 - **SECURITY.md**: Added responsible vulnerability disclosure policy with
   supported versions, reporting process, and security practices
 
