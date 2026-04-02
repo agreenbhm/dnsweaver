@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-04-02
+
+### Security
+- **Alpine 3.23 base image**: Runtime base image upgraded from Alpine 3.21 to 3.23
+  for reduced CVE surface and latest security patches
+- **CI security hardening**: `security:trivy` (filesystem scan) and
+  `security:govulncheck` now block pipeline on CRITICAL/HIGH findings instead
+  of running in warn-only mode
+- **SECURITY.md**: Added responsible vulnerability disclosure policy with
+  supported versions, reporting process, and security practices
+
+### Changed
+- Alpine base image upgraded from 3.21 to 3.23
+- `.trivyignore` entries now include explicit review dates
+
 ## [1.0.3] - 2026-03-31
 
 ### Security

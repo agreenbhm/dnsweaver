@@ -103,18 +103,21 @@ security:trivy:
     name: aquasec/trivy:latest
     entrypoint: [""]
   script:
-    - trivy fs --exit-code 0 --severity HIGH,CRITICAL --format table .
+    # Block on CRITICAL/HIGH Go dependency vulnerabilities
+    - trivy fs --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed --ignorefile .trivyignore --format table .
+    # Warn on MEDIUM/LOW (track, don't block)
+    - trivy fs --exit-code 0 --severity MEDIUM,LOW --ignorefile .trivyignore --format table .
   rules: *rules-code-changes
-  allow_failure: true
+  allow_failure: false
 
 security:govulncheck:
   extends: .go-base
   stage: security
   script:
     - go install golang.org/x/vuln/cmd/govulncheck@latest
-    - govulncheck ./... || true
+    - govulncheck ./...
   rules: *rules-code-changes
-  allow_failure: true
+  allow_failure: false
 
 security:gitleaks:
   stage: security

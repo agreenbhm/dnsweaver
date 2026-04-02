@@ -7,5 +7,5 @@
 #   2. Requires Go 1.25.5+ and full import path migration to moby/moby/v2
 #   3. CVE is a daemon-side AuthZ plugin bypass — dnsweaver is a client-only consumer
 #      that uses the Docker SDK to read container/service state (no AuthZ interaction)
-# Reassess when moby/moby/v2 reaches stable release.
+# Review by: 2026-07-01 or when moby/moby/v2 reaches stable release
 CVE-2026-34040
