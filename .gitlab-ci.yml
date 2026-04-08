@@ -120,8 +120,12 @@ security:govulncheck:
     # Known unfixed (docker/docker — no fix available, review 2026-07-01):
     #   GO-2026-4887 - Moby AuthZ plugin bypass (oversized request bodies)
     #   GO-2026-4883 - Moby off-by-one plugin privilege validation
+    # Known unfixed (Go stdlib — fixed in go1.25.9, not yet released, review 2026-05-01):
+    #   GO-2026-4947 - crypto/x509 unexpected work during chain building (DoS)
+    #   GO-2026-4946 - crypto/x509 inefficient policy validation (DoS)
+    #   GO-2026-4870 - crypto/tls unauthenticated TLS 1.3 KeyUpdate DoS
     - |
-      KNOWN_VULNS="GO-2026-4887|GO-2026-4883"
+      KNOWN_VULNS="GO-2026-4887|GO-2026-4883|GO-2026-4947|GO-2026-4946|GO-2026-4870"
       RC=0
       govulncheck ./... > govulncheck.txt 2>&1 || RC=$?
       cat govulncheck.txt
