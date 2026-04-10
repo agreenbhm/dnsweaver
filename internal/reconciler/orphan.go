@@ -142,7 +142,17 @@ func (r *Reconciler) deleteOrphanForProvider(ctx context.Context, hostname strin
 
 	// Managed mode: use ownership-based deletion
 	if r.config.OwnershipTracking {
-		return r.deleteManagedForProvider(ctx, hostname, inst, cache)
+		// If the provider supports TXT, use full ownership tracking
+		if inst.Provider.Capabilities().SupportsOwnershipTXT {
+			return r.deleteManagedForProvider(ctx, hostname, inst, cache)
+		}
+
+		// Provider doesn't support TXT: use target-based ownership inference.
+		// A record is inferred as "ours" if its type and target match this provider
+		// instance's configured values. This allows managed-mode orphan cleanup
+		// for providers that can't store TXT ownership records (AdGuard Home,
+		// Pi-hole file mode, dnsmasq).
+		return r.deleteTargetMatchForProvider(ctx, hostname, inst, cache)
 	}
 
 	// Managed mode without ownership tracking: use cache-based deletion
@@ -423,6 +433,133 @@ func (r *Reconciler) deleteManagedForProvider(ctx context.Context, hostname stri
 			slog.String("hostname", hostname),
 			slog.String("provider", inst.Name()),
 		)
+	}
+
+	return actions
+}
+
+// deleteTargetMatchForProvider deletes orphan records in managed mode for providers
+// that don't support TXT ownership records. Instead of relying on TXT markers, it
+// uses target-based inference: a record is considered "owned" by this instance if
+// its record type and target value match the instance's configured values.
+//
+// This heuristic works because dnsweaver creates records with a fixed target per
+// provider instance — any record in scope with a matching type and target was almost
+// certainly created by this instance. Records with different targets are left untouched,
+// preserving manually-created records.
+//
+// Edge case: a manually-created record with the same domain, type, AND target as this
+// instance would be incorrectly identified as owned and deleted. This is a narrow risk
+// that requires exact target match within dnsweaver's managed domain patterns.
+func (r *Reconciler) deleteTargetMatchForProvider(ctx context.Context, hostname string, inst *provider.ProviderInstance, cache *recordCache) []Action {
+	if r.isDryRun() {
+		action := Action{
+			Type:       ActionDelete,
+			Provider:   inst.Name(),
+			Hostname:   hostname,
+			RecordType: string(inst.RecordType),
+			Target:     inst.Target,
+			Status:     StatusSuccess,
+		}
+		r.logger.Info("would delete target-matched record (dry-run)",
+			slog.String("hostname", hostname),
+			slog.String("provider", inst.Name()),
+			slog.String("target", inst.Target),
+		)
+		return []Action{action}
+	}
+
+	// Get actual records from cache or provider
+	var allRecords []provider.Record
+	if cache != nil {
+		cachedRecords, ok := cache.getAllRecordsForHostname(inst.Name(), hostname)
+		if ok && len(cachedRecords) > 0 {
+			allRecords = cachedRecords
+		}
+	}
+
+	if len(allRecords) == 0 {
+		records, err := inst.Provider.List(ctx)
+		if err != nil {
+			r.logger.Warn("failed to list records for target-match deletion",
+				slog.String("hostname", hostname),
+				slog.String("provider", inst.Name()),
+				slog.String("error", err.Error()),
+			)
+			return []Action{{
+				Type:       ActionDelete,
+				Provider:   inst.Name(),
+				Hostname:   hostname,
+				RecordType: string(inst.RecordType),
+				Target:     inst.Target,
+				Status:     StatusFailed,
+				Error:      "failed to list records: " + err.Error(),
+			}}
+		}
+		for _, rec := range records {
+			if rec.Hostname == hostname {
+				allRecords = append(allRecords, rec)
+			}
+		}
+	}
+
+	// Filter to records matching this instance's configured type and target
+	var matched []provider.Record
+	for _, record := range allRecords {
+		if record.Type == inst.RecordType && record.Target == inst.Target {
+			matched = append(matched, record)
+		}
+	}
+
+	if len(matched) == 0 {
+		r.logger.Info("skipping orphan deletion - no target-matched records (manually created or different instance?)",
+			slog.String("hostname", hostname),
+			slog.String("provider", inst.Name()),
+			slog.String("expected_type", string(inst.RecordType)),
+			slog.String("expected_target", inst.Target),
+			slog.Int("total_records", len(allRecords)),
+		)
+		return []Action{{
+			Type:       ActionSkip,
+			Provider:   inst.Name(),
+			Hostname:   hostname,
+			RecordType: string(inst.RecordType),
+			Target:     inst.Target,
+			Status:     StatusSkipped,
+			Error:      "no target-matched records found",
+		}}
+	}
+
+	var actions []Action
+	for _, record := range matched {
+		action := Action{
+			Type:       ActionDelete,
+			Provider:   inst.Name(),
+			Hostname:   hostname,
+			RecordType: string(record.Type),
+			Target:     record.Target,
+		}
+
+		if err := inst.DeleteRecordByTarget(ctx, hostname, record.Type, record.Target); err != nil {
+			action.Status = StatusFailed
+			action.Error = err.Error()
+			r.logger.Error("failed to delete target-matched record",
+				slog.String("hostname", hostname),
+				slog.String("provider", inst.Name()),
+				slog.String("type", string(record.Type)),
+				slog.String("target", record.Target),
+				slog.String("error", err.Error()),
+			)
+		} else {
+			action.Status = StatusSuccess
+			r.logger.Info("deleted target-matched record (no TXT ownership available)",
+				slog.String("hostname", hostname),
+				slog.String("provider", inst.Name()),
+				slog.String("type", string(record.Type)),
+				slog.String("target", record.Target),
+			)
+		}
+		actions = append(actions, action)
 	}
 
 	return actions

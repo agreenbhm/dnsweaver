@@ -66,6 +66,17 @@ address=/web.home.example.com/192.0.2.100
 cname=alias.home.example.com,target.home.example.com
 ```
 
+## Ownership and Managed Mode
+
+!!! info "Target-Based Ownership Inference"
+    dnsmasq is file-based and does not support TXT records, so dnsweaver cannot create
+    ownership TXT markers (`_dnsweaver.*`) for this provider. In **managed mode**, dnsweaver
+    uses **target-based ownership inference** instead: if a record's type and target match the
+    provider instance's configured `RECORD_TYPE` and `TARGET`, it is inferred as owned and
+    cleaned up when the source workload disappears. Records with different targets are preserved.
+
+    See [Operational Modes](../configuration/modes.md) for details.
+
 ## Record Types
 
 ### A Records

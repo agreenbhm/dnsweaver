@@ -43,6 +43,13 @@ _dnsweaver.app.home.example.com  TXT    "dnsweaver-id=abc123"
 
 Only records with matching TXT ownership records are deleted when containers stop.
 
+!!! note "Providers Without TXT Support"
+    Some providers (AdGuard Home, Pi-hole file mode, dnsmasq) cannot store TXT records.
+    For these providers, managed mode uses **target-based ownership inference**: if a record's
+    type and target match the provider instance's configured values, dnsweaver infers it created
+    the record and will clean it up. Records with different targets are preserved.
+    See each provider's documentation for details.
+
 ## Authoritative Mode
 
 !!! warning "Use with Caution"

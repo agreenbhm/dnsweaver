@@ -67,6 +67,17 @@ volumes:
 | `DOMAINS` | Yes | - | Glob patterns to match |
 | `EXCLUDE_DOMAINS` | No | - | Patterns to exclude |
 
+## Ownership and Managed Mode
+
+!!! info "Target-Based Ownership Inference"
+    Pi-hole does not support TXT records, so dnsweaver cannot create ownership TXT markers
+    (`_dnsweaver.*`) for this provider. In **managed mode**, dnsweaver uses **target-based
+    ownership inference** instead: if a record's type and target match the provider instance's
+    configured `RECORD_TYPE` and `TARGET`, it is inferred as owned and cleaned up when the
+    source workload disappears. Records with different targets are preserved.
+
+    See [Operational Modes](../configuration/modes.md) for details.
+
 ## Record Types
 
 ### A Records (Local DNS)

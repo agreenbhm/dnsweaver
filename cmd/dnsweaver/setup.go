@@ -14,6 +14,7 @@ import (
 	k8s "gitlab.bluewillows.net/root/dnsweaver/internal/kubernetes"
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/source"
+	"gitlab.bluewillows.net/root/dnsweaver/providers/adguard"
 	"gitlab.bluewillows.net/root/dnsweaver/providers/cloudflare"
 	"gitlab.bluewillows.net/root/dnsweaver/providers/dnsmasq"
 	"gitlab.bluewillows.net/root/dnsweaver/providers/pihole"
@@ -185,6 +186,9 @@ func registerProviderFactories(registry *provider.Registry) {
 
 	// Register RFC 2136 provider factory (BIND, Windows DNS, PowerDNS, etc.)
 	registry.RegisterFactory("rfc2136", rfc2136.Factory())
+
+	// Register AdGuard Home provider factory (local DNS via AdGuard Home API)
+	registry.RegisterFactory("adguard", adguard.Factory())
 }
 
 // initializeProviders initializes all configured providers using the manager.

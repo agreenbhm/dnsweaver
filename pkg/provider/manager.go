@@ -143,6 +143,16 @@ func (m *Manager) InitializeProvider(cfg ProviderInstanceConfig) error {
 					slog.String("provider", cfg.Name),
 					slog.String("type", cfg.TypeName),
 				)
+
+				// Warn if provider cannot store ownership TXT records
+				caps := inst.Provider.Capabilities()
+				if !caps.SupportsOwnershipTXT {
+					m.logger.Warn("provider does not support TXT records; managed mode will use target-based ownership inference",
+						slog.String("provider", cfg.Name),
+						slog.String("type", cfg.TypeName),
+					)
+				}
+
 				// Record metrics
 				metrics.ProviderAvailable.WithLabelValues(cfg.Name, cfg.TypeName).Set(1)
 				m.updateCountMetrics()
@@ -304,6 +314,17 @@ func (m *Manager) retryProvider(ctx context.Context, pending *PendingProvider) {
 			slog.Int("attempts", pending.AttemptCount+1),
 		)
 		m.mu.Unlock()
+
+		// Warn if provider cannot store ownership TXT records
+		if inst, ok := m.registry.Get(cfg.Name); ok {
+			caps := inst.Provider.Capabilities()
+			if !caps.SupportsOwnershipTXT {
+				m.logger.Warn("provider does not support TXT records; managed mode will use target-based ownership inference",
+					slog.String("provider", cfg.Name),
+					slog.String("type", cfg.TypeName),
+				)
+			}
+		}
 
 		// Notify outside the lock to prevent deadlocks (#127)
 		if m.config.OnProviderReady != nil {

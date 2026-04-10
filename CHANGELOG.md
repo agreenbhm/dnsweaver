@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-04-10
+
+### Added
+- **AdGuard Home provider**: New DNS provider supporting AdGuard Home's DNS Rewrite
+  API. Supports A, AAAA, and CNAME records with full CRUD lifecycle, native
+  in-place updates via `PUT /control/rewrite/update`, and Basic Auth. Requires
+  AdGuard Home v0.107+ ([#77](https://github.com/maxfield-allison/dnsweaver/issues/77))
+- **Target-based ownership inference**: Managed-mode orphan cleanup now works for
+  providers that cannot store TXT ownership records (AdGuard Home, Pi-hole file mode,
+  dnsmasq). When a record's type and target match the provider instance's configured
+  values, dnsweaver infers ownership and cleans up the record. Records with different
+  targets are preserved, protecting manually-created entries
+
+### Changed
+- **Startup warning for non-TXT providers**: Updated log message from
+  "ownership tracking unavailable" to "managed mode will use target-based
+  ownership inference" — managed mode is now fully functional for these providers
+
 ## [1.0.5] - 2026-04-08
 
 ### Fixed

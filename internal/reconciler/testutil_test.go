@@ -61,14 +61,15 @@ type testMockProvider struct {
 	name     string
 	typeName string
 
-	mu       sync.Mutex
-	records  []provider.Record
-	created  []provider.Record
-	deleted  []provider.Record
-	pingErr  error
-	listErr  error
-	createFn func(ctx context.Context, r provider.Record) error
-	deleteFn func(ctx context.Context, r provider.Record) error
+	mu           sync.Mutex
+	records      []provider.Record
+	created      []provider.Record
+	deleted      []provider.Record
+	pingErr      error
+	listErr      error
+	createFn     func(ctx context.Context, r provider.Record) error
+	deleteFn     func(ctx context.Context, r provider.Record) error
+	capabilities *provider.Capabilities // nil = default (supports everything)
 }
 
 func newTestMockProvider(name string) *testMockProvider {
@@ -85,6 +86,9 @@ func (m *testMockProvider) Name() string { return m.name }
 func (m *testMockProvider) Type() string { return m.typeName }
 
 func (m *testMockProvider) Capabilities() provider.Capabilities {
+	if m.capabilities != nil {
+		return *m.capabilities
+	}
 	return provider.Capabilities{
 		SupportsOwnershipTXT: true,
 		SupportsNativeUpdate: true,

@@ -60,6 +60,14 @@ dnsweaver supports multiple DNS providers, each with different capabilities and 
 
     [:octicons-arrow-right-24: Configuration](rfc2136.md)
 
+-   :material-shield-home:{ .lg .middle } **AdGuard Home**
+
+    ---
+
+    Network-wide ad blocker with DNS rewrite management. REST API.
+
+    [:octicons-arrow-right-24: Configuration](adguard.md)
+
 </div>
 
 ## Provider Comparison
@@ -70,6 +78,7 @@ dnsweaver supports multiple DNS providers, each with different capabilities and 
 | [Cloudflare](cloudflare.md) | REST API | A, AAAA, CNAME, TXT | Public DNS with CDN/proxy |
 | [RFC 2136](rfc2136.md) | DNS Protocol | A, AAAA, CNAME, SRV, TXT | BIND, Windows DNS, PowerDNS, Knot |
 | [Pi-hole](pihole.md) | REST API or File | A, AAAA, CNAME | Existing Pi-hole setups |
+| [AdGuard Home](adguard.md) | REST API | A, AAAA, CNAME | Existing AdGuard Home setups |
 | [dnsmasq](dnsmasq.md) | File | A, AAAA, CNAME | Simple file-based DNS |
 | [Webhook](webhook.md) | HTTP Callback | Any | Custom integrations |
 
