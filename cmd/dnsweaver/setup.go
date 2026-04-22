@@ -23,6 +23,7 @@ import (
 	"gitlab.bluewillows.net/root/dnsweaver/providers/webhook"
 	dnsweaversource "gitlab.bluewillows.net/root/dnsweaver/sources/dnsweaver"
 	k8ssource "gitlab.bluewillows.net/root/dnsweaver/sources/kubernetes"
+	proxmoxsource "gitlab.bluewillows.net/root/dnsweaver/sources/proxmox"
 	"gitlab.bluewillows.net/root/dnsweaver/sources/traefik"
 )
 
@@ -126,6 +127,17 @@ func registerSources(registry *source.Registry, cfg *config.Config, logger *slog
 			logger.Info("registered source",
 				slog.String("name", name),
 			)
+		case "proxmox":
+			src := proxmoxsource.New(
+				proxmoxsource.WithDomain(cfg.ProxmoxDomainSuffix()),
+				proxmoxsource.WithLogger(logger),
+			)
+			if err := registry.Register(src); err != nil {
+				return fmt.Errorf("registering proxmox source: %w", err)
+			}
+			logger.Info("registered source",
+				slog.String("name", name),
+			)
 		default:
 			logger.Warn("unknown source, skipping", slog.String("source", name))
 		}
@@ -142,6 +154,21 @@ func registerSources(registry *source.Registry, cfg *config.Config, logger *slog
 				return fmt.Errorf("registering kubernetes source: %w", err)
 			}
 			logger.Info("auto-registered kubernetes source for K8s platform")
+		}
+	}
+
+	// Auto-register proxmox source when Proxmox platform is enabled.
+	// Mirrors the K8s auto-registration pattern.
+	if cfg.UseProxmox() {
+		if registry.Get("proxmox") == nil {
+			src := proxmoxsource.New(
+				proxmoxsource.WithDomain(cfg.ProxmoxDomainSuffix()),
+				proxmoxsource.WithLogger(logger),
+			)
+			if err := registry.Register(src); err != nil {
+				return fmt.Errorf("registering proxmox source: %w", err)
+			}
+			logger.Info("auto-registered proxmox source for Proxmox platform")
 		}
 	}
 

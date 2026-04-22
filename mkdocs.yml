@@ -142,6 +142,7 @@ nav:
       - Traefik Files: sources/traefik-files.md
       - Native Labels: sources/native-labels.md
       - Kubernetes: sources/kubernetes.md
+      - Proxmox VE: sources/proxmox.md
   - Deployment:
       - deployment/index.md
       - Docker Compose: deployment/docker-compose.md

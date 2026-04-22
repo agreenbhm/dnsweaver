@@ -52,6 +52,14 @@ dnsweaver discovers hostnames to manage from multiple **sources**. Each source t
 
     [:octicons-arrow-right-24: Kubernetes](kubernetes.md)
 
+-   :material-server:{ .lg .middle } **Proxmox VE**
+
+    ---
+
+    Discover VMs and LXC containers on a Proxmox cluster and create A records from VM names.
+
+    [:octicons-arrow-right-24: Proxmox](proxmox.md)
+
 </div>
 
 ## Source Priority
@@ -62,6 +70,7 @@ When multiple sources provide the same hostname, dnsweaver uses the following pr
 2. **Traefik/Caddy labels** (reverse proxy configuration)
 3. **Traefik files** (dynamic configuration)
 4. **Kubernetes** (resource spec hostnames)
+5. **Proxmox VE** (VM/LXC name + domain suffix)
 
 ## Hostname Extraction
 
@@ -75,6 +84,7 @@ Each source extracts hostnames differently:
 | Traefik Files | `http.routers.*.rule` in YAML/TOML | Standard Traefik config |
 | Native | `dnsweaver.hostname` | `dnsweaver.hostname=app.example.com` |
 | Kubernetes | Resource spec fields | `.spec.rules[].host` (Ingress) |
+| Proxmox VE | VM/LXC name + domain suffix | `webserver` + `home.example.com` |
 
 !!! info "Multiple hostnames"
     Containers and Kubernetes resources can expose multiple hostnames. All discovered hostnames are processed independently and matched against configured provider domains.

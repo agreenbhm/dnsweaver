@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -24,6 +25,45 @@ type apiRecord struct {
 	Disabled bool     `json:"disabled"`
 }
 
+// svcParamsValue handles Technitium's dual representation of svcParams.
+// Older API versions return a pipe-delimited string ("alpn|h2"),
+// while newer versions return a JSON object ({"alpn": "h2"}).
+type svcParamsValue string
+
+// UnmarshalJSON implements json.Unmarshaler to accept both string and object forms.
+func (v *svcParamsValue) UnmarshalJSON(data []byte) error {
+	// Try string form first (write-path format: "alpn|h2")
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		*v = svcParamsValue(s)
+		return nil
+	}
+	// Try object form (read-path format: {"alpn": "h2"} or {"alpn": ["h2","h3"]})
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return fmt.Errorf("svcParams: cannot parse as string or object: %s", data)
+	}
+	keys := make([]string, 0, len(obj))
+	for k := range obj {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys) // deterministic ordering
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		var valStr string
+		if err := json.Unmarshal(obj[k], &valStr); err == nil {
+			parts = append(parts, k+"|"+valStr)
+			continue
+		}
+		var valArr []string
+		if err := json.Unmarshal(obj[k], &valArr); err == nil {
+			parts = append(parts, k+"|"+strings.Join(valArr, ","))
+		}
+	}
+	*v = svcParamsValue(strings.Join(parts, " "))
+	return nil
+}
+
 // apiRData contains the record-specific data from Technitium.
 type apiRData struct {
 	IPAddress string `json:"ipAddress,omitempty"` // For A/AAAA records
@@ -35,9 +75,9 @@ type apiRData struct {
 	Port      int    `json:"port,omitempty"`     // For SRV records
 	SrvTarget string `json:"target,omitempty"`   // For SRV records
 	// HTTPS/SVCB record fields
-	SvcPriority   int    `json:"svcPriority,omitempty"`   // For HTTPS/SVCB records
-	SvcTargetName string `json:"svcTargetName,omitempty"` // For HTTPS/SVCB records ("." = self)
-	SvcParams     string `json:"svcParams,omitempty"`     // For HTTPS/SVCB records (e.g., "alpn|h2")
+	SvcPriority   int            `json:"svcPriority,omitempty"`   // For HTTPS/SVCB records
+	SvcTargetName string         `json:"svcTargetName,omitempty"` // For HTTPS/SVCB records ("." = self)
+	SvcParams     svcParamsValue `json:"svcParams,omitempty"`     // For HTTPS/SVCB records (e.g., "alpn|h2")
 }
 
 // Note: older Technitium versions might represent svcParams differently; keep parsing flexible.

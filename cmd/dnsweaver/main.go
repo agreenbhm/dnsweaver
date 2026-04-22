@@ -22,6 +22,7 @@ import (
 	"gitlab.bluewillows.net/root/dnsweaver/internal/health"
 	k8s "gitlab.bluewillows.net/root/dnsweaver/internal/kubernetes"
 	"gitlab.bluewillows.net/root/dnsweaver/internal/metrics"
+	proxmoxclient "gitlab.bluewillows.net/root/dnsweaver/internal/proxmox"
 	"gitlab.bluewillows.net/root/dnsweaver/internal/reconciler"
 	"gitlab.bluewillows.net/root/dnsweaver/internal/watcher"
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
@@ -268,8 +269,33 @@ func run() error {
 		)
 	}
 
+	// Initialize Proxmox VE lister when DNSWEAVER_PROXMOX_URL is set.
+	if cfg.UseProxmox() {
+		pveClient, err := proxmoxclient.NewClient(proxmoxclient.ClientConfig{
+			BaseURL:     cfg.ProxmoxURL(),
+			TokenID:     cfg.ProxmoxTokenID(),
+			TokenSecret: cfg.ProxmoxTokenSecret(),
+			VerifyTLS:   cfg.ProxmoxVerifyTLS(),
+			Logger:      logger,
+		})
+		if err != nil {
+			return fmt.Errorf("creating proxmox client: %w", err)
+		}
+		proxmoxLister := proxmoxclient.NewWorkloadListerAdapter(pveClient, proxmoxclient.AdapterConfig{
+			NodeFilter:  cfg.ProxmoxNodeFilter(),
+			TagFilter:   cfg.ProxmoxTagFilter(),
+			StateFilter: cfg.ProxmoxStateFilter(),
+		}, logger)
+		listers = append(listers, proxmoxLister)
+		logger.Info("proxmox lister configured",
+			slog.String("url", cfg.ProxmoxURL()),
+			slog.String("node_filter", cfg.ProxmoxNodeFilter()),
+			slog.String("tag_filter", cfg.ProxmoxTagFilter()),
+		)
+	}
+
 	if len(listers) == 0 {
-		return fmt.Errorf("no platform watchers configured: set DNSWEAVER_PLATFORM to docker, kubernetes, or both")
+		return fmt.Errorf("no platform watchers configured: set DNSWEAVER_PLATFORM to docker, kubernetes, or both, or set DNSWEAVER_PROXMOX_URL for Proxmox VE")
 	}
 
 	rec := reconciler.New(listers, sourceRegistry, providerRegistry,

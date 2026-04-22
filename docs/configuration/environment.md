@@ -117,7 +117,7 @@ Replace `{NAME}` with your instance name. For example, instance `internal-dns` u
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DNSWEAVER_SOURCES` | `traefik` | Comma-separated list: `traefik`, `dnsweaver`, `kubernetes` |
+| `DNSWEAVER_SOURCES` | `traefik` | Comma-separated list: `traefik`, `dnsweaver`, `kubernetes`, `proxmox` |
 
 !!! warning "Deprecated Variable"
     `DNSWEAVER_SOURCE` (singular) is deprecated and will be removed in v2.0. Use `DNSWEAVER_SOURCES` (plural) instead.
@@ -131,6 +131,24 @@ Replace `{NAME}` with your instance name. For example, instance `internal-dns` u
 | `DNSWEAVER_SOURCE_TRAEFIK_FILE_PATTERN` | `*.yml,*.yaml,*.toml` | Glob pattern for config files |
 | `DNSWEAVER_SOURCE_TRAEFIK_POLL_INTERVAL` | `60s` | File re-scan interval |
 | `DNSWEAVER_SOURCE_TRAEFIK_WATCH_METHOD` | `auto` | Watch method: `auto`, `inotify`, `poll` |
+
+### Proxmox VE Source Settings
+
+Setting `DNSWEAVER_PROXMOX_URL` auto-registers the Proxmox source even if not
+listed in `DNSWEAVER_SOURCES`. See [Proxmox Source](../sources/proxmox.md) for
+full setup including the required PVE role privileges.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DNSWEAVER_PROXMOX_URL` | Yes | — | PVE API base URL, e.g. `https://pve-00:8006` |
+| `DNSWEAVER_PROXMOX_TOKEN_ID` | Yes | — | API token ID, e.g. `dnsweaver@pve!dnsweaver` |
+| `DNSWEAVER_PROXMOX_TOKEN_SECRET` | Yes | — | API token secret (UUID). Supports `_FILE` suffix. |
+| `DNSWEAVER_PROXMOX_TOKEN_SECRET_FILE` | Alt | — | Path to a file containing the token secret |
+| `DNSWEAVER_PROXMOX_VERIFY_TLS` | No | `false` | Set `true` to verify the PVE API TLS certificate |
+| `DNSWEAVER_PROXMOX_NODE_FILTER` | No | *(all)* | Restrict discovery to a single PVE node name |
+| `DNSWEAVER_PROXMOX_TAG_FILTER` | No | *(all)* | Only include resources with this tag (prefix match) |
+| `DNSWEAVER_PROXMOX_STATE_FILTER` | No | `running` | Resource status filter (`running`, `stopped`, etc.) |
+| `DNSWEAVER_PROXMOX_DOMAIN_SUFFIX` | No | — | Domain suffix appended to VM names |
 
 ## Provider-Specific Settings
 

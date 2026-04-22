@@ -80,6 +80,16 @@ type GlobalConfig struct {
 	// Source
 	Source string // traefik, labels, or custom source name
 
+	// Proxmox VE settings
+	ProxmoxURL          string // PVE API base URL (e.g., https://pve-00:8006)
+	ProxmoxTokenID      string // PVE API token ID (e.g., user@pam!dnsweaver)
+	ProxmoxTokenSecret  string // PVE API token secret (UUID); supports _FILE suffix
+	ProxmoxNodeFilter   string // Optional: limit to a specific node (empty = all nodes)
+	ProxmoxTagFilter    string // Optional: prefix match on PVE tags to filter workloads
+	ProxmoxStateFilter  string // Filter by PVE resource status (default: "running")
+	ProxmoxDomainSuffix string // Domain suffix to append to VM names (e.g., "home.example.com")
+	ProxmoxVerifyTLS    bool   // Verify TLS certificate on PVE API endpoint
+
 	// Multi-instance coordination
 	InstanceID string // Unique identifier for this dnsweaver instance (for shared zone management)
 }
@@ -327,6 +337,18 @@ func loadGlobalConfig() (*GlobalConfig, []*ConfigError) {
 		cfg.K8sWatchServices = parseBool(v, false)
 	} else {
 		cfg.K8sWatchServices = false
+	}
+
+	// Proxmox VE settings
+	cfg.ProxmoxURL = getEnv("DNSWEAVER_PROXMOX_URL")
+	cfg.ProxmoxTokenID = getEnv("DNSWEAVER_PROXMOX_TOKEN_ID")
+	cfg.ProxmoxTokenSecret = getEnvOrFile("DNSWEAVER_PROXMOX_TOKEN_SECRET", "DNSWEAVER_PROXMOX_TOKEN_SECRET_FILE")
+	cfg.ProxmoxNodeFilter = getEnv("DNSWEAVER_PROXMOX_NODE_FILTER")
+	cfg.ProxmoxTagFilter = getEnv("DNSWEAVER_PROXMOX_TAG_FILTER")
+	cfg.ProxmoxStateFilter = getEnv("DNSWEAVER_PROXMOX_STATE_FILTER")
+	cfg.ProxmoxDomainSuffix = getEnv("DNSWEAVER_PROXMOX_DOMAIN_SUFFIX")
+	if v := getEnv("DNSWEAVER_PROXMOX_VERIFY_TLS"); v != "" {
+		cfg.ProxmoxVerifyTLS = parseBool(v, false)
 	}
 
 	return cfg, errs

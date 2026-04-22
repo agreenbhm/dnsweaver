@@ -5,9 +5,9 @@
 [![License](https://img.shields.io/github/license/maxfield-allison/dnsweaver?style=flat-square)](LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/maxfield-allison/dnsweaver?style=flat-square)](go.mod)
 
-**Automatic DNS record management for Docker and Kubernetes workloads with multi-provider support.**
+**Automatic DNS record management for Docker, Kubernetes, and Proxmox VE workloads with multi-provider support.**
 
-dnsweaver watches Docker events and Kubernetes resources to automatically create and delete DNS records. Unlike single-provider tools, dnsweaver supports **split-horizon DNS**, **multiple DNS providers** simultaneously, and works across both **Docker** and **Kubernetes** platforms.
+dnsweaver watches Docker events, Kubernetes resources, and Proxmox VE clusters to automatically create and delete DNS records. Unlike single-provider tools, dnsweaver supports **split-horizon DNS**, **multiple DNS providers** simultaneously, and works across **Docker**, **Kubernetes**, and **Proxmox** platforms.
 
 📚 **[Full Documentation](https://maxfield-allison.github.io/dnsweaver/)**
 
@@ -17,6 +17,7 @@ dnsweaver watches Docker events and Kubernetes resources to automatically create
 - 🌐 **Split-Horizon DNS** — Internal and external records from the same container labels
 - 🐳 **Docker & Swarm** — Works with standalone Docker and Docker Swarm clusters
 - ☸️ **Kubernetes Native** — Watches Ingress, IngressRoute, HTTPRoute, and Service resources via Helm or Kustomize
+- 🖥️ **Proxmox VE** — Auto-creates A records for VMs (via QEMU guest agent) and LXC containers
 - 🏗️ **Multi-Instance Safe** — Run multiple dnsweaver instances on the same DNS zone without conflicts
 - 🔒 **Socket Proxy Compatible** — Connect via TCP to a Docker socket proxy for improved security
 - 🏷️ **Traefik Integration** — Parses `traefik.http.routers.*.rule` labels to extract hostnames
@@ -103,7 +104,9 @@ flowchart LR
 | [Getting Started](https://maxfield-allison.github.io/dnsweaver/getting-started/) | Installation and first configuration |
 | [Configuration](https://maxfield-allison.github.io/dnsweaver/configuration/environment/) | Environment variables reference |
 | [Providers](https://maxfield-allison.github.io/dnsweaver/providers/) | Provider-specific setup guides |
+| [Sources](https://maxfield-allison.github.io/dnsweaver/sources/) | Docker, Kubernetes, Proxmox, Traefik file sources |
 | [Kubernetes](https://maxfield-allison.github.io/dnsweaver/deployment/kubernetes/) | Kubernetes deployment with Helm/Kustomize |
+| [Proxmox VE](https://maxfield-allison.github.io/dnsweaver/sources/proxmox/) | Auto-DNS for VMs and LXC containers |
 | [Split-Horizon DNS](https://maxfield-allison.github.io/dnsweaver/deployment/split-horizon/) | Internal + external records |
 | [Docker Swarm](https://maxfield-allison.github.io/dnsweaver/deployment/swarm/) | Swarm deployment guide |
 | [Observability](https://maxfield-allison.github.io/dnsweaver/observability/) | Metrics, logging, and health checks |

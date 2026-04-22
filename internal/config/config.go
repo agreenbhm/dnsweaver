@@ -295,6 +295,51 @@ func (c *Config) K8sAnnotationFilter() string {
 	return c.Global.K8sAnnotationFilter
 }
 
+// UseProxmox returns true if a Proxmox VE URL is configured.
+func (c *Config) UseProxmox() bool {
+	return c.Global.ProxmoxURL != ""
+}
+
+// ProxmoxURL returns the Proxmox VE API base URL.
+func (c *Config) ProxmoxURL() string {
+	return c.Global.ProxmoxURL
+}
+
+// ProxmoxTokenID returns the Proxmox API token ID.
+func (c *Config) ProxmoxTokenID() string {
+	return c.Global.ProxmoxTokenID
+}
+
+// ProxmoxTokenSecret returns the Proxmox API token secret.
+func (c *Config) ProxmoxTokenSecret() string {
+	return c.Global.ProxmoxTokenSecret
+}
+
+// ProxmoxNodeFilter returns the optional node name filter.
+func (c *Config) ProxmoxNodeFilter() string {
+	return c.Global.ProxmoxNodeFilter
+}
+
+// ProxmoxTagFilter returns the optional tag prefix filter.
+func (c *Config) ProxmoxTagFilter() string {
+	return c.Global.ProxmoxTagFilter
+}
+
+// ProxmoxStateFilter returns the resource state filter (default: "running").
+func (c *Config) ProxmoxStateFilter() string {
+	return c.Global.ProxmoxStateFilter
+}
+
+// ProxmoxDomainSuffix returns the domain suffix appended to VM names.
+func (c *Config) ProxmoxDomainSuffix() string {
+	return c.Global.ProxmoxDomainSuffix
+}
+
+// ProxmoxVerifyTLS returns whether to verify TLS on the PVE API endpoint.
+func (c *Config) ProxmoxVerifyTLS() bool {
+	return c.Global.ProxmoxVerifyTLS
+}
+
 // GetProviderInstance returns the configuration for a specific provider instance.
 func (c *Config) GetProviderInstance(name string) (*ProviderInstanceConfig, bool) {
 	for _, inst := range c.ProviderInstances {

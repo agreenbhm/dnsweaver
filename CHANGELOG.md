@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Proxmox VE source**: Auto-create A records for VMs and LXC containers on a
+  Proxmox cluster. VMs resolve via the QEMU guest agent
+  (`/agent/network-get-interfaces`); LXC containers resolve via the `net0`
+  config field. Supports node, tag, and state filtering, and exposes PVE tags
+  as workload labels (`proxmox.tag/*`). Configure via `DNSWEAVER_PROXMOX_*`
+  environment variables. See `docs/sources/proxmox.md` for the required PVE
+  role privileges (`VM.Audit`, `VM.Monitor`, `Pool.Audit`).
+
+### Fixed
+- **Technitium `svcParams` unmarshal failure on newer firmware**: The
+  `zones/records/get` endpoint now returns `svcParams` as a JSON object
+  (`{"alpn":"h2"}`) instead of the documented pipe-delimited string
+  (`"alpn|h2"`). This caused `failed to recover ownership state` warnings and
+  prevented the reconciler from recognising its own existing HTTPS records,
+  triggering spurious recreate cycles. Added a `svcParamsValue` named type with
+  a custom `UnmarshalJSON` that accepts both representations and normalises to
+  the pipe-delimited form internally.
+
 ## [1.1.4] - 2026-04-21
 
 ### Fixed
