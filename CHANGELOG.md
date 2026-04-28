@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-04-27
+
 ### Fixed
 - **Technitium: `AUTO_HTTPS_RECORDS` and `AUTO_HTTPS_ALPN` env vars are now
   respected.** Previously these settings were silently ignored because they
