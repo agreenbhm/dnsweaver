@@ -501,3 +501,67 @@ func TestExtractRouterFromEntryPointsLabel(t *testing.T) {
 		})
 	}
 }
+
+// --- DefaultEntryPoints (#180): mirror Traefik's `asDefault` setting ---
+
+func TestParser_ExtractHostnames_DefaultEntryPoints_FansOutUnlabeledRouter(t *testing.T) {
+	parser := NewParser(
+		WithParserLogger(testLogger()),
+		WithParserDefaultEntryPoints([]string{"webA", "webC"}),
+	)
+
+	labels := map[string]string{
+		"traefik.http.routers.frontend.rule": "Host(`app.example.com`)",
+		// no .entrypoints label — would be wildcard pre-1.4.2
+	}
+
+	extractions := parser.ExtractHostnames(labels)
+	if len(extractions) != 2 {
+		t.Fatalf("expected 2 extractions (one per default entrypoint), got %d", len(extractions))
+	}
+	idx := indexExtractions(extractions)
+	if _, ok := idx[[2]string{"app.example.com", "webA"}]; !ok {
+		t.Error("missing (app.example.com, webA)")
+	}
+	if _, ok := idx[[2]string{"app.example.com", "webC"}]; !ok {
+		t.Error("missing (app.example.com, webC)")
+	}
+}
+
+func TestParser_ExtractHostnames_DefaultEntryPoints_DoesNotOverrideExplicit(t *testing.T) {
+	// A router with explicit entrypoints must NOT be touched by the defaults.
+	parser := NewParser(
+		WithParserLogger(testLogger()),
+		WithParserDefaultEntryPoints([]string{"webA", "webC"}),
+	)
+
+	labels := map[string]string{
+		"traefik.http.routers.frontend.rule":        "Host(`app.example.com`)",
+		"traefik.http.routers.frontend.entrypoints": "webB",
+	}
+
+	extractions := parser.ExtractHostnames(labels)
+	if len(extractions) != 1 {
+		t.Fatalf("expected 1 extraction (explicit webB), got %d", len(extractions))
+	}
+	if extractions[0].EntryPoint != "webB" {
+		t.Errorf("expected entrypoint webB, got %q", extractions[0].EntryPoint)
+	}
+}
+
+func TestParser_ExtractHostnames_DefaultEntryPoints_UnsetPreservesWildcard(t *testing.T) {
+	// Pre-1.4.2 behavior: no defaults configured → unlabeled router stays wildcard.
+	parser := NewParser(WithParserLogger(testLogger()))
+
+	labels := map[string]string{
+		"traefik.http.routers.frontend.rule": "Host(`app.example.com`)",
+	}
+
+	extractions := parser.ExtractHostnames(labels)
+	if len(extractions) != 1 {
+		t.Fatalf("expected 1 wildcard extraction, got %d", len(extractions))
+	}
+	if extractions[0].EntryPoint != "" {
+		t.Errorf("expected empty (wildcard) entrypoint, got %q", extractions[0].EntryPoint)
+	}
+}

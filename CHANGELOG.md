@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Traefik: `DNSWEAVER_SOURCE_TRAEFIK_DEFAULT_ENTRYPOINTS`** — source-level
+  setting that mirrors Traefik's
+  [`entryPoints.<name>.asDefault = true`](https://doc.traefik.io/traefik/reference/install-configuration/entrypoints/#opt-asdefault)
+  configuration. When set, Traefik routers without an explicit `entryPoints`
+  declaration (label or static config) fan out one extraction per default
+  entrypoint instead of being treated as wildcard. Required for users with
+  `asDefault` flagged in Traefik so unlabeled routers don't silently
+  over-publish records to all dnsweaver instances. Unset preserves prior
+  wildcard behavior. Closes #180. Refs upstream
+  https://github.com/maxfield-allison/dnsweaver/issues/82.
+
 ## [1.4.1] - 2026-04-27
 
 ### Fixed

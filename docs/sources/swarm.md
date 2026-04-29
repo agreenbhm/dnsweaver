@@ -197,6 +197,30 @@ services:
 - The same `(host, entrypoint)` pair declared in multiple
   containers/files is deduplicated.
 
+### Traefik `asDefault` Entrypoints
+
+Traefik supports flagging entrypoints as
+[`asDefault = true`](https://doc.traefik.io/traefik/reference/install-configuration/entrypoints/#opt-asdefault).
+When set, routers without an explicit `entryPoints` declaration bind
+**only** to the `asDefault` entrypoints — not to all entrypoints.
+
+dnsweaver cannot read Traefik's static config, so the wildcard behavior
+above will silently over-publish records for unlabeled routers in this
+case. If you use `asDefault`, declare the same defaults to dnsweaver via
+the source-level setting:
+
+```yaml
+environment:
+  - DNSWEAVER_SOURCE_TRAEFIK_DEFAULT_ENTRYPOINTS=webA,webC
+```
+
+With this set, an unlabeled router fans out one extraction per default
+entrypoint — exactly mirroring what Traefik itself does — and per-instance
+`ENTRYPOINTS` filters then claim each pair as usual. Routers with explicit
+`entrypoints` labels are unaffected.
+
+Unset (default) preserves pre-1.4.2 wildcard behavior.
+
 ## Troubleshooting
 
 ### Labels Not Detected

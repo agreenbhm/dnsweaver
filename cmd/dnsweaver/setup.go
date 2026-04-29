@@ -224,6 +224,13 @@ func createTraefikSource(cfg *config.Config, logger *slog.Logger) *traefik.Traef
 		)
 	}
 
+	if srcCfg != nil && len(srcCfg.DefaultEntryPoints) > 0 {
+		opts = append(opts, traefik.WithDefaultEntryPoints(srcCfg.DefaultEntryPoints))
+		logger.Debug("traefik default entrypoints configured",
+			slog.Any("default_entrypoints", srcCfg.DefaultEntryPoints),
+		)
+	}
+
 	return traefik.New(opts...)
 }
 

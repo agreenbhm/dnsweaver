@@ -35,9 +35,10 @@ const DefaultFilePattern = "*.yml,*.yaml,*.toml"
 // Traefik implements the source.Source interface for extracting hostnames
 // from Traefik container labels and static configuration files.
 type Traefik struct {
-	parser     *Parser
-	logger     *slog.Logger
-	fileConfig source.FileDiscoveryConfig
+	parser             *Parser
+	logger             *slog.Logger
+	fileConfig         source.FileDiscoveryConfig
+	defaultEntryPoints []string
 }
 
 // Option is a functional option for configuring Traefik.
@@ -61,6 +62,22 @@ func WithFileDiscovery(config source.FileDiscoveryConfig) Option {
 	}
 }
 
+// WithDefaultEntryPoints configures which entrypoints should be assumed for
+// Traefik routers that declare no `entryPoints` (label or static config).
+//
+// Mirrors Traefik's `entryPoints.<name>.asDefault = true` setting: when set
+// in Traefik, undeclared routers bind only to the `asDefault` entrypoints,
+// not to all entrypoints. dnsweaver cannot read Traefik's static config so
+// this must be supplied explicitly via
+// `DNSWEAVER_SOURCE_TRAEFIK_DEFAULT_ENTRYPOINTS`.
+//
+// Empty/unset preserves pre-1.4.2 wildcard behavior.
+func WithDefaultEntryPoints(eps []string) Option {
+	return func(t *Traefik) {
+		t.defaultEntryPoints = eps
+	}
+}
+
 // New creates a new Traefik source.
 func New(opts ...Option) *Traefik {
 	t := &Traefik{
@@ -72,7 +89,11 @@ func New(opts ...Option) *Traefik {
 		opt(t)
 	}
 
-	t.parser = NewParser(WithParserLogger(t.logger))
+	parserOpts := []ParserOption{WithParserLogger(t.logger)}
+	if len(t.defaultEntryPoints) > 0 {
+		parserOpts = append(parserOpts, WithParserDefaultEntryPoints(t.defaultEntryPoints))
+	}
+	t.parser = NewParser(parserOpts...)
 
 	return t
 }

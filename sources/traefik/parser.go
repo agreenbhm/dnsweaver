@@ -34,7 +34,8 @@ type HostnameExtraction struct {
 
 // Parser extracts hostnames from Traefik labels.
 type Parser struct {
-	logger *slog.Logger
+	logger             *slog.Logger
+	defaultEntryPoints []string
 }
 
 // ParserOption is a functional option for configuring the Parser.
@@ -44,6 +45,26 @@ type ParserOption func(*Parser)
 func WithParserLogger(logger *slog.Logger) ParserOption {
 	return func(p *Parser) {
 		p.logger = logger
+	}
+}
+
+// WithDefaultEntryPoints configures the entrypoints that an unlabeled router
+// (no `traefik.http.routers.<name>.entrypoints` label, no `entryPoints` field
+// in static config) should be treated as bound to.
+//
+// This mirrors Traefik's `entryPoints.<name>.asDefault = true` configuration:
+// when set in Traefik, routers without an explicit `entryPoints` declaration
+// bind only to the entrypoints flagged `asDefault`, NOT to all entrypoints.
+//
+// dnsweaver cannot read Traefik's static config, so users with `asDefault`
+// entrypoints must declare them here so unlabeled routers get fanned out
+// only across those defaults rather than treated as wildcard.
+//
+// When unset (default), unlabeled routers continue to produce a single
+// wildcard extraction (EntryPoint=""), preserving pre-1.4.2 behavior.
+func WithParserDefaultEntryPoints(eps []string) ParserOption {
+	return func(p *Parser) {
+		p.defaultEntryPoints = eps
 	}
 }
 
@@ -107,7 +128,13 @@ func (p *Parser) ExtractHostnames(labels map[string]string) []HostnameExtraction
 		)
 
 		hosts := extractHostsFromRule(value)
-		entryPoints := routerEntryPoints[router] // nil/empty == wildcard
+		entryPoints := routerEntryPoints[router]
+		// If router declared no entrypoints and the source was configured
+		// with DefaultEntryPoints (Traefik `asDefault` mirror), fan out across
+		// those defaults instead of treating the router as wildcard.
+		if len(entryPoints) == 0 && len(p.defaultEntryPoints) > 0 {
+			entryPoints = p.defaultEntryPoints
+		}
 
 		for _, hostname := range hosts {
 			if len(entryPoints) == 0 {

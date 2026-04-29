@@ -17,6 +17,12 @@ type SourceInstanceConfig struct {
 	// FileDiscovery contains file-based discovery configuration.
 	// Presence of FilePaths implies enablement (per design in #22).
 	FileDiscovery source.FileDiscoveryConfig
+
+	// DefaultEntryPoints is a Traefik-source-specific setting that lists the
+	// entrypoints an unlabeled router should be considered bound to. Mirrors
+	// Traefik's `entryPoints.<name>.asDefault = true` configuration.
+	// See sources/traefik.WithDefaultEntryPoints. Ignored for non-traefik sources.
+	DefaultEntryPoints []string
 }
 
 // SourceConfig holds all source configuration.
@@ -127,6 +133,20 @@ func loadSourceInstanceConfig(name string) *SourceInstanceConfig {
 	// WATCH_METHOD - auto, inotify, poll (default: auto)
 	if method := getEnv(prefix + "WATCH_METHOD"); method != "" {
 		cfg.FileDiscovery.WatchMethod = strings.ToLower(method)
+	}
+
+	// DEFAULT_ENTRYPOINTS - traefik-only: which entrypoints unlabeled routers
+	// should be treated as bound to (mirrors Traefik's `asDefault` setting).
+	// Comma-separated, whitespace tolerant. Empty/unset preserves wildcard behavior.
+	if eps := getEnv(prefix + "DEFAULT_ENTRYPOINTS"); eps != "" {
+		var out []string
+		for _, e := range strings.Split(eps, ",") {
+			e = strings.TrimSpace(e)
+			if e != "" {
+				out = append(out, e)
+			}
+		}
+		cfg.DefaultEntryPoints = out
 	}
 
 	return cfg

@@ -340,3 +340,70 @@ func TestSourceEnvPrefix(t *testing.T) {
 		})
 	}
 }
+
+// TestLoadSourceConfig_DefaultEntryPoints covers #180:
+// DNSWEAVER_SOURCE_TRAEFIK_DEFAULT_ENTRYPOINTS parses into
+// SourceInstanceConfig.DefaultEntryPoints with whitespace tolerance.
+func TestLoadSourceConfig_DefaultEntryPoints(t *testing.T) {
+	tests := []struct {
+		name    string
+		envVars map[string]string
+		want    []string
+	}{
+		{
+			name: "single value",
+			envVars: map[string]string{
+				"DNSWEAVER_SOURCES":                            "traefik",
+				"DNSWEAVER_SOURCE_TRAEFIK_DEFAULT_ENTRYPOINTS": "webA",
+			},
+			want: []string{"webA"},
+		},
+		{
+			name: "multiple comma-separated",
+			envVars: map[string]string{
+				"DNSWEAVER_SOURCES":                            "traefik",
+				"DNSWEAVER_SOURCE_TRAEFIK_DEFAULT_ENTRYPOINTS": "webA,webC",
+			},
+			want: []string{"webA", "webC"},
+		},
+		{
+			name: "whitespace and empty entries tolerated",
+			envVars: map[string]string{
+				"DNSWEAVER_SOURCES":                            "traefik",
+				"DNSWEAVER_SOURCE_TRAEFIK_DEFAULT_ENTRYPOINTS": "  webA , ,  webC ,",
+			},
+			want: []string{"webA", "webC"},
+		},
+		{
+			name: "unset → nil",
+			envVars: map[string]string{
+				"DNSWEAVER_SOURCES": "traefik",
+			},
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Clearenv()
+			for k, v := range tt.envVars {
+				os.Setenv(k, v)
+			}
+
+			cfg := loadSourceConfig()
+			inst := cfg.GetSourceInstance("traefik")
+			if inst == nil {
+				t.Fatal("traefik source instance not found")
+			}
+			got := inst.DefaultEntryPoints
+			if len(got) != len(tt.want) {
+				t.Fatalf("DefaultEntryPoints len = %d, want %d (got=%+v)", len(got), len(tt.want), got)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("DefaultEntryPoints[%d] = %q, want %q", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}

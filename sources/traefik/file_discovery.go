@@ -212,6 +212,12 @@ func (p *Parser) extractFromConfig(config *traefikFileConfig, path string) ([]Ho
 
 		hosts := extractHostsFromRule(router.Rule)
 		eps := router.EntryPoints
+		// If router declared no entrypoints and the source was configured
+		// with DefaultEntryPoints (Traefik `asDefault` mirror), fan out across
+		// those defaults instead of treating the router as wildcard.
+		if len(eps) == 0 && len(p.defaultEntryPoints) > 0 {
+			eps = p.defaultEntryPoints
+		}
 		for _, hostname := range hosts {
 			if len(eps) == 0 {
 				extractions = append(extractions, HostnameExtraction{

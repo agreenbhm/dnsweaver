@@ -680,3 +680,58 @@ func TestParser_DiscoverFromFiles_DedupePerEntrypoint(t *testing.T) {
 		t.Fatalf("expected 2 unique (host,entrypoint) pairs, got %d: %+v", len(extractions), extractions)
 	}
 }
+
+// --- DefaultEntryPoints in static config (#180) ---
+
+func TestParser_DiscoverFromFiles_DefaultEntryPoints_FansOut(t *testing.T) {
+	tmpDir := t.TempDir()
+	yamlContent := "http:\n" +
+		"  routers:\n" +
+		"    myapp:\n" +
+		"      rule: \"Host(`app.example.com`)\"\n" // no entryPoints
+	testFile := filepath.Join(tmpDir, "routers.yml")
+	if err := os.WriteFile(testFile, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	parser := NewParser(WithParserDefaultEntryPoints([]string{"webA", "webC"}))
+	extractions, err := parser.DiscoverFromFiles(context.Background(), []string{testFile}, "*.yml")
+	if err != nil {
+		t.Fatalf("DiscoverFromFiles: %v", err)
+	}
+	if len(extractions) != 2 {
+		t.Fatalf("expected 2 extractions (one per default entrypoint), got %d: %+v", len(extractions), extractions)
+	}
+	got := make(map[string]bool)
+	for _, e := range extractions {
+		got[e.EntryPoint] = true
+	}
+	if !got["webA"] || !got["webC"] {
+		t.Errorf("expected both webA and webC, got %+v", got)
+	}
+}
+
+func TestParser_DiscoverFromFiles_DefaultEntryPoints_ExplicitWins(t *testing.T) {
+	tmpDir := t.TempDir()
+	yamlContent := "http:\n" +
+		"  routers:\n" +
+		"    myapp:\n" +
+		"      rule: \"Host(`app.example.com`)\"\n" +
+		"      entryPoints: [webB]\n"
+	testFile := filepath.Join(tmpDir, "routers.yml")
+	if err := os.WriteFile(testFile, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	parser := NewParser(WithParserDefaultEntryPoints([]string{"webA", "webC"}))
+	extractions, err := parser.DiscoverFromFiles(context.Background(), []string{testFile}, "*.yml")
+	if err != nil {
+		t.Fatalf("DiscoverFromFiles: %v", err)
+	}
+	if len(extractions) != 1 {
+		t.Fatalf("expected 1 extraction (explicit webB), got %d", len(extractions))
+	}
+	if extractions[0].EntryPoint != "webB" {
+		t.Errorf("expected webB, got %q", extractions[0].EntryPoint)
+	}
+}
