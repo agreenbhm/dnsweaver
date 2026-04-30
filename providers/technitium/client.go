@@ -602,13 +602,22 @@ func (c *Client) UpdateAAAARecord(ctx context.Context, zone, hostname, oldIP, ne
 }
 
 // UpdateCNAMERecord updates a CNAME record's target in the specified zone.
+//
+// CNAME records are unique per domain name (only one CNAME may exist at a name),
+// so the Technitium API's record-update endpoint identifies the record by
+// (zone, domain, type) alone. The new target is sent as the `cname` parameter.
+// The Technitium API does not define a `newCname` parameter; the previous use of
+// `cname=oldTarget` + `newCname=newTarget` was a silent no-op (the API matched
+// the existing record by `cname` and saw no change to apply). See issue #84.
+//
+// The oldTarget argument is retained for logging and call-site symmetry with
+// UpdateARecord/UpdateAAAARecord; it is not sent to the Technitium API.
 func (c *Client) UpdateCNAMERecord(ctx context.Context, zone, hostname, oldTarget, newTarget string, ttl int) error {
 	params := url.Values{}
 	params.Set("zone", zone)
 	params.Set("domain", hostname)
 	params.Set("type", "CNAME")
-	params.Set("cname", oldTarget)
-	params.Set("newCname", newTarget)
+	params.Set("cname", newTarget)
 	params.Set("ttl", strconv.Itoa(ttl))
 
 	_, err := c.doRequest(ctx, "/api/zones/records/update", params)

@@ -411,3 +411,145 @@ func TestClient_NetworkError(t *testing.T) {
 		t.Error("expected error, got nil")
 	}
 }
+
+// TestClient_UpdateCNAMERecord_Success is the regression test for issue #84.
+//
+// The previous implementation sent `cname=<old>&newCname=<new>` to
+// /api/zones/records/update. The Technitium API does not define a `newCname`
+// parameter, so the request matched the existing record by `cname` and applied
+// no change (silent no-op).
+//
+// The fix sends `cname=<new>` with no `newCname` parameter. CNAME records are
+// unique per name, so (zone, domain, type) is enough to identify the record.
+func TestClient_UpdateCNAMERecord_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/zones/records/update" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+
+		query := r.URL.Query()
+		if query.Get("zone") != "example.com" {
+			t.Errorf("unexpected zone: %s", query.Get("zone"))
+		}
+		if query.Get("domain") != "alias.example.com" {
+			t.Errorf("unexpected domain: %s", query.Get("domain"))
+		}
+		if query.Get("type") != "CNAME" {
+			t.Errorf("unexpected type: %s", query.Get("type"))
+		}
+		// The fix: `cname` carries the NEW target (Technitium identifies the
+		// existing CNAME record by domain+type and replaces its rdata).
+		if query.Get("cname") != "new.example.com" {
+			t.Errorf("expected cname=new.example.com (the new target), got %q", query.Get("cname"))
+		}
+		// Regression guard: `newCname` is NOT a valid Technitium parameter.
+		// If it ever reappears the bug from #84 has returned.
+		if got := query.Get("newCname"); got != "" {
+			t.Errorf("newCname parameter must not be sent (issue #84), got %q", got)
+		}
+		if query.Get("ttl") != "300" {
+			t.Errorf("unexpected ttl: %s", query.Get("ttl"))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "ok",
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-token")
+	err := client.UpdateCNAMERecord(
+		context.Background(),
+		"example.com",
+		"alias.example.com",
+		"old.example.com",
+		"new.example.com",
+		300,
+	)
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestClient_UpdateARecord_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/zones/records/update" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+
+		query := r.URL.Query()
+		if query.Get("type") != "A" {
+			t.Errorf("unexpected type: %s", query.Get("type"))
+		}
+		if query.Get("ipAddress") != "10.0.0.1" {
+			t.Errorf("expected ipAddress=10.0.0.1 (old IP, used to identify record), got %q", query.Get("ipAddress"))
+		}
+		if query.Get("newIpAddress") != "10.0.0.2" {
+			t.Errorf("expected newIpAddress=10.0.0.2, got %q", query.Get("newIpAddress"))
+		}
+		if query.Get("ttl") != "300" {
+			t.Errorf("unexpected ttl: %s", query.Get("ttl"))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "ok",
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-token")
+	err := client.UpdateARecord(
+		context.Background(),
+		"example.com",
+		"host.example.com",
+		"10.0.0.1",
+		"10.0.0.2",
+		300,
+	)
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestClient_UpdateAAAARecord_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/zones/records/update" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+
+		query := r.URL.Query()
+		if query.Get("type") != "AAAA" {
+			t.Errorf("unexpected type: %s", query.Get("type"))
+		}
+		if query.Get("ipAddress") != "2001:db8::1" {
+			t.Errorf("expected ipAddress=2001:db8::1 (old IP), got %q", query.Get("ipAddress"))
+		}
+		if query.Get("newIpAddress") != "2001:db8::2" {
+			t.Errorf("expected newIpAddress=2001:db8::2, got %q", query.Get("newIpAddress"))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "ok",
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-token")
+	err := client.UpdateAAAARecord(
+		context.Background(),
+		"example.com",
+		"host.example.com",
+		"2001:db8::1",
+		"2001:db8::2",
+		300,
+	)
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
