@@ -235,7 +235,8 @@ var providerConfigFields = []struct {
 	{"INCLUDE_MARKER", false},       // dnsmasq-specific
 	{"RELOAD_COMMAND", false},       // dnsmasq-specific
 	{"ACCESS_MODE", false},          // Pi-hole specific (api/file) — renamed from MODE in v0.10.0
-	{"PASSWORD", true},              // Pi-hole specific
+	{"USERNAME", false},             // AdGuard Home specific
+	{"PASSWORD", true},              // Pi-hole and AdGuard Home specific
 	{"INSECURE_SKIP_VERIFY", false}, // TLS certificate verification skip
 	{"AUTO_HTTPS_RECORDS", false},   // Technitium-specific: companion HTTPS record creation
 	{"AUTO_HTTPS_ALPN", false},      // Technitium-specific: ALPN value for companion HTTPS records
