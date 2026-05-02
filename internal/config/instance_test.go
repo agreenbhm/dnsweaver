@@ -32,6 +32,9 @@ func clearInstanceEnv(t *testing.T, instanceName string) {
 		prefix + "API_KEY",
 		prefix + "API_KEY_FILE",
 		prefix + "API_EMAIL",
+		prefix + "USERNAME",
+		prefix + "PASSWORD",
+		prefix + "PASSWORD_FILE",
 	}
 	for _, v := range envVars {
 		os.Unsetenv(v)
@@ -848,5 +851,71 @@ func TestLoadInstanceConfig_Entrypoints_EmptyValueIgnored(t *testing.T) {
 	}
 	if cfg.MetadataFilters != nil {
 		t.Errorf("MetadataFilters = %v, want nil for blank ENTRYPOINTS", cfg.MetadataFilters)
+	}
+}
+
+// TestLoadInstanceConfig_AdGuardCredentials verifies that USERNAME and PASSWORD
+// env vars are propagated into ProviderConfig for the AdGuard Home provider.
+//
+// Regression test for https://github.com/maxfield-allison/dnsweaver/issues/85:
+// USERNAME was missing from providerConfigFields, so DNSWEAVER_<NAME>_USERNAME
+// was silently dropped and the AdGuard provider always failed validation with
+// "USERNAME is required" even when the env var was set.
+func TestLoadInstanceConfig_AdGuardCredentials(t *testing.T) {
+	const instanceName = "adguard"
+	clearInstanceEnv(t, instanceName)
+	defer clearInstanceEnv(t, instanceName)
+
+	prefix := envPrefix(instanceName)
+	os.Setenv(prefix+"TYPE", "adguard")
+	os.Setenv(prefix+"URL", "http://adguard:3000")
+	os.Setenv(prefix+"USERNAME", "admin")
+	os.Setenv(prefix+"PASSWORD", "test-password")
+	os.Setenv(prefix+"TARGET", "192.0.2.100")
+	os.Setenv(prefix+"DOMAINS", "*.example.com")
+	defer os.Unsetenv(prefix + "USERNAME")
+	defer os.Unsetenv(prefix + "PASSWORD")
+
+	cfg, errs := loadInstanceConfig(instanceName, 300)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	if got := cfg.ProviderConfig["USERNAME"]; got != "admin" {
+		t.Errorf("ProviderConfig[USERNAME] = %q, want %q", got, "admin")
+	}
+	if got := cfg.ProviderConfig["PASSWORD"]; got != "test-password" {
+		t.Errorf("ProviderConfig[PASSWORD] = %q, want %q", got, "test-password")
+	}
+}
+
+// TestLoadInstanceConfig_AdGuardPasswordFile verifies _FILE secret loading
+// works for AdGuard PASSWORD (Docker secrets pattern).
+func TestLoadInstanceConfig_AdGuardPasswordFile(t *testing.T) {
+	const instanceName = "adguard"
+	clearInstanceEnv(t, instanceName)
+	defer clearInstanceEnv(t, instanceName)
+
+	tmpDir := t.TempDir()
+	pwFile := filepath.Join(tmpDir, "password")
+	if err := os.WriteFile(pwFile, []byte("file-password\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	prefix := envPrefix(instanceName)
+	os.Setenv(prefix+"TYPE", "adguard")
+	os.Setenv(prefix+"URL", "http://adguard:3000")
+	os.Setenv(prefix+"USERNAME", "admin")
+	os.Setenv(prefix+"PASSWORD_FILE", pwFile)
+	os.Setenv(prefix+"TARGET", "192.0.2.100")
+	os.Setenv(prefix+"DOMAINS", "*.example.com")
+	defer os.Unsetenv(prefix + "USERNAME")
+	defer os.Unsetenv(prefix + "PASSWORD_FILE")
+
+	cfg, errs := loadInstanceConfig(instanceName, 300)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	if got := cfg.ProviderConfig["PASSWORD"]; got != "file-password" {
+		t.Errorf("ProviderConfig[PASSWORD] = %q, want %q (from _FILE)", got, "file-password")
 	}
 }

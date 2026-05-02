@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.4] - 2026-05-02
+
+### Fixed
+- **AdGuard Home: `USERNAME` env var was silently dropped during config load.**
+  `USERNAME` was missing from `providerConfigFields`, so
+  `DNSWEAVER_<INSTANCE>_USERNAME` never reached the provider's `LoadConfigFromMap`.
+  The AdGuard provider then failed validation with `USERNAME is required` even
+  when the variable was clearly set, making the provider impossible to configure
+  via environment variables. Added `USERNAME` (and clarified `PASSWORD` shared
+  use) to the field list, plus regression tests for both direct and `_FILE`
+  secret loading. Closes upstream
+  [#85](https://github.com/maxfield-allison/dnsweaver/issues/85). Thanks to
+  [@XayneCast](https://github.com/XayneCast) for the report.
+
 ## [1.4.3] - 2026-04-30
 
 ### Fixed
