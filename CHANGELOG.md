@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.4.5] - 2026-05-10
 
+### Security
+- **Bumped `go.opentelemetry.io/otel` to v1.41.0** to address
+  [CVE-2026-29181](https://avd.aquasec.com/nvd/cve-2026-29181) (HIGH):
+  multi-value `baggage` header extraction caused excessive allocations,
+  enabling a remote DoS amplification. Pulled in transitively via the Docker
+  client SDK; no dnsweaver code changes required.
+
 ### Fixed
 - **Multiple instances fighting over the same record (race condition).** When
   more than one provider instance matched the same hostname — typically because
