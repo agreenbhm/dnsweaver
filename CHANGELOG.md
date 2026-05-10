@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Reconciler: stopped re-issuing ownership TXT creates every cycle.** Once a
+  hostname's `_dnsweaver.<host>` TXT record existed, dnsweaver still POSTed a
+  duplicate-create on every reconciliation. dnsweaver swallowed the resulting
+  conflict, but upstream DNS servers logged each one as an error — Technitium
+  in particular wrote a full `DnsWebServiceException: Cannot add record: record
+  already exists` stack trace per managed hostname per cycle. `ensureOwnership
+  Record` now consults the per-cycle record cache and short-circuits when it
+  already shows our ownership TXT, eliminating the redundant API call across
+  all providers. Closes upstream
+  [#87](https://github.com/maxfield-allison/dnsweaver/issues/87). Thanks to
+  [@Dampfwalze](https://github.com/Dampfwalze) for the report and Technitium
+  log evidence.
+
 ## [1.4.4] - 2026-05-02
 
 ### Fixed

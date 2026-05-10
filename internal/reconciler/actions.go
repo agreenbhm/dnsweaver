@@ -254,14 +254,14 @@ func (r *Reconciler) ensureRecordForProvider(ctx context.Context, hostname *sour
 				slog.String("provider", inst.Name()),
 				slog.String("target", target),
 			)
-			r.ensureOwnershipRecord(ctx, hostname.Name, inst, metadata)
+			r.ensureOwnershipRecord(ctx, hostname.Name, inst, metadata, cache)
 		} else if r.config.AdoptExisting {
 			r.logger.Info("adopting existing record",
 				slog.String("hostname", hostname.Name),
 				slog.String("provider", inst.Name()),
 				slog.String("target", target),
 			)
-			r.ensureOwnershipRecord(ctx, hostname.Name, inst, metadata)
+			r.ensureOwnershipRecord(ctx, hostname.Name, inst, metadata, cache)
 		} else {
 			r.logger.Info("existing record found, skipping adoption (set ADOPT_EXISTING=true to manage)",
 				slog.String("hostname", hostname.Name),
@@ -314,7 +314,7 @@ func (r *Reconciler) ensureRecordForProvider(ctx context.Context, hostname *sour
 			slog.String("type", string(recordType)),
 			slog.String("target", target),
 		)
-		r.ensureOwnershipRecord(ctx, hostname.Name, inst, metadata)
+		r.ensureOwnershipRecord(ctx, hostname.Name, inst, metadata, cache)
 		return action
 	}
 
@@ -330,7 +330,7 @@ func (r *Reconciler) ensureRecordForProvider(ctx context.Context, hostname *sour
 				slog.String("hostname", hostname.Name),
 				slog.String("provider", inst.Name()),
 			)
-			r.ensureOwnershipRecord(ctx, hostname.Name, inst, metadata)
+			r.ensureOwnershipRecord(ctx, hostname.Name, inst, metadata, cache)
 		} else if provider.IsTypeConflict(err) {
 			action.Type = ActionSkip
 			action.Status = StatusSkipped
@@ -358,15 +358,26 @@ func (r *Reconciler) ensureRecordForProvider(ctx context.Context, hostname *sour
 			slog.String("target", target),
 		)
 		action.Status = StatusSuccess
-		r.ensureOwnershipRecord(ctx, hostname.Name, inst, metadata)
+		r.ensureOwnershipRecord(ctx, hostname.Name, inst, metadata, cache)
 	}
 
 	return action
 }
 
 // ensureOwnershipRecord creates the ownership TXT record if tracking is enabled.
-func (r *Reconciler) ensureOwnershipRecord(ctx context.Context, hostname string, inst *provider.ProviderInstance, metadata map[string]string) {
+// If the cache already shows an ownership record for this instance, the create
+// call is skipped to avoid generating an exception/log entry on the upstream
+// DNS server (e.g. Technitium logs every "record already exists" as an error).
+// See issue #87.
+func (r *Reconciler) ensureOwnershipRecord(ctx context.Context, hostname string, inst *provider.ProviderInstance, metadata map[string]string, cache *recordCache) {
 	if !r.config.OwnershipTracking {
+		return
+	}
+
+	// Short-circuit when the cache confirms our ownership record already exists.
+	// Without this, every reconciliation cycle posts a duplicate-create that
+	// dnsweaver swallows but the DNS server logs as an error.
+	if cache != nil && cache.hasOwnershipRecord(inst.Name(), hostname, r.config.InstanceID) {
 		return
 	}
 

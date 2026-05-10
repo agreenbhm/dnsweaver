@@ -872,7 +872,7 @@ func TestEnsureOwnershipRecord_CreatesWhenEnabled(t *testing.T) {
 	r.syncAtomics()
 
 	inst, _ := providers.Get("test-dns")
-	r.ensureOwnershipRecord(context.Background(), "app.example.com", inst, nil)
+	r.ensureOwnershipRecord(context.Background(), "app.example.com", inst, nil, nil)
 
 	created := mock.GetCreated()
 	var foundOwnership bool
@@ -915,12 +915,61 @@ func TestEnsureOwnershipRecord_SkipsWhenDisabled(t *testing.T) {
 	r.syncAtomics()
 
 	inst, _ := providers.Get("test-dns")
-	r.ensureOwnershipRecord(context.Background(), "app.example.com", inst, nil)
+	r.ensureOwnershipRecord(context.Background(), "app.example.com", inst, nil, nil)
 
 	created := mock.GetCreated()
 	for _, c := range created {
 		if c.Type == provider.RecordTypeTXT {
 			t.Error("ownership TXT record should NOT be created when tracking disabled")
+		}
+	}
+}
+
+// TestEnsureOwnershipRecord_SkipsWhenCacheHasIt is a regression test for
+// https://github.com/maxfield-allison/dnsweaver/issues/87 — the steady-state
+// reconcile loop must not re-issue an ownership Create when the cache already
+// shows the record exists, because upstream DNS servers (e.g. Technitium) log
+// every duplicate-create as an error.
+func TestEnsureOwnershipRecord_SkipsWhenCacheHasIt(t *testing.T) {
+	mock := newTestMockProvider("test-dns")
+	// Pre-seed an existing ownership TXT record (legacy format, no instance ID).
+	mock.AddRecord(provider.Record{
+		Hostname: "_dnsweaver.app.example.com",
+		Type:     provider.RecordTypeTXT,
+		Target:   "heritage=dnsweaver",
+		TTL:      300,
+	})
+
+	logger := quietLogger()
+	providers := provider.NewRegistry(logger)
+	providers.RegisterFactory("mock", func(cfg provider.FactoryConfig) (provider.Provider, error) {
+		return mock, nil
+	})
+	_ = providers.CreateInstance(provider.ProviderInstanceConfig{
+		Name:       "test-dns",
+		TypeName:   "mock",
+		RecordType: provider.RecordTypeA,
+		Target:     "10.0.0.1",
+		TTL:        300,
+		Domains:    []string{"*.example.com"},
+	})
+
+	cache := newRecordCache(context.Background(), providers, logger)
+
+	r := &Reconciler{
+		providers:      providers,
+		config:         Config{OwnershipTracking: true, Enabled: true},
+		logger:         logger,
+		knownHostnames: make(map[string]struct{}),
+	}
+	r.syncAtomics()
+
+	inst, _ := providers.Get("test-dns")
+	r.ensureOwnershipRecord(context.Background(), "app.example.com", inst, nil, cache)
+
+	for _, c := range mock.GetCreated() {
+		if c.Type == provider.RecordTypeTXT {
+			t.Errorf("expected no ownership Create when cache shows record exists, got Create for %q", c.Hostname)
 		}
 	}
 }
