@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.6] - 2026-05-12
+
 ### Fixed
 - **Regression from #86: legitimate fan-out to distinct backends was being
   collapsed.** The first-match-wins fix in
