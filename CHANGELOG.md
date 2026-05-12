@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Regression from #86: legitimate fan-out to distinct backends was being
+  collapsed.** The first-match-wins fix in
+  [#86](https://github.com/maxfield-allison/dnsweaver/issues/86) treated *every*
+  pair of overlapping instances as a conflict, including the supported case of
+  intentionally writing the same hostname to two different DNS backends (e.g.
+  internal Technitium + external Cloudflare for a split-horizon setup). Only
+  the first instance in declaration order would write; the rest were silently
+  dropped. Precedence is now scoped to a *backend identity* tuple
+  `(provider type, endpoint, zone) × record type`. Distinct backends each get
+  their write; only instances pointing at the same physical zone collapse to
+  the first declared. A startup-time `WARN` enumerates colliding instances so
+  misconfigurations remain visible. Backward-compatible: out-of-tree providers
+  that don't implement the new optional `provider.Identifiable` interface fall
+  back to type-only identity, preserving #86's behavior for them. Closes
+  upstream [#88](https://github.com/maxfield-allison/dnsweaver/issues/88).
+  Thanks to [@Dampfwalze](https://github.com/Dampfwalze) for the regression
+  report and clear reproducer.
+
 ## [1.4.5] - 2026-05-10
 
 ### Security

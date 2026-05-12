@@ -142,6 +142,7 @@ func (r *Registry) CreateInstance(cfg ProviderInstanceConfig) error {
 		Mode:            cfg.Mode,
 		InstanceID:      r.instanceID,
 		MetadataFilters: cfg.MetadataFilters,
+		Identity:        IdentityOf(provider),
 	}
 
 	// Default to managed mode if not set
@@ -308,4 +309,48 @@ func (r *Registry) Count() int {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return len(r.instances)
+}
+
+// WarnDuplicateIdentities scans all registered instances and emits one WARN
+// log entry per group of instances that share the same backend identity AND
+// RecordType. Such instances will collide when both match the same hostname
+// (one will overwrite the other every reconciliation, see #86), so the
+// reconciler resolves the collision via first-match-wins. Surfacing the
+// collision once at startup makes the misconfiguration visible without
+// spamming a warning on every reconcile.
+//
+// Intended to be called from main() once after all providers are loaded.
+func (r *Registry) WarnDuplicateIdentities() {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	type identityKey struct {
+		Identity   ProviderIdentity
+		RecordType RecordType
+	}
+	groups := make(map[identityKey][]string, len(r.instances))
+	order := make([]identityKey, 0)
+	for _, inst := range r.instances {
+		k := identityKey{Identity: inst.Identity, RecordType: inst.RecordType}
+		if _, seen := groups[k]; !seen {
+			order = append(order, k)
+		}
+		groups[k] = append(groups[k], inst.Name())
+	}
+
+	for _, k := range order {
+		names := groups[k]
+		if len(names) < 2 {
+			continue
+		}
+		r.logger.Warn("multiple provider instances share the same backend identity; only the first to match a hostname will write",
+			slog.String("provider_type", k.Identity.Type),
+			slog.String("endpoint", k.Identity.Endpoint),
+			slog.String("zone", k.Identity.Zone),
+			slog.String("record_type", string(k.RecordType)),
+			slog.Any("instances", names),
+			slog.String("winner", names[0]),
+			slog.String("hint", "ensure each backend (type+endpoint+zone+record_type) is referenced by at most one DNSWEAVER_INSTANCES entry, or use DNSWEAVER_{NAME}_ENTRYPOINTS / metadata filters to make scopes mutually exclusive"),
+		)
+	}
 }

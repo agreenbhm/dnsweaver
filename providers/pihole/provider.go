@@ -18,6 +18,8 @@ import (
 // - File mode: Uses dnsmasq-style config files (for containerized Pi-hole)
 type Provider struct {
 	name       string
+	url        string // Pi-hole admin URL (API mode, recorded for Identity)
+	configPath string // Pi-hole dnsmasq config path (file mode, recorded for Identity)
 	zone       string
 	ttl        int
 	mode       Mode
@@ -82,11 +84,13 @@ func New(name string, config *Config, opts ...ProviderOption) (*Provider, error)
 	}
 
 	p := &Provider{
-		name:   name,
-		zone:   config.Zone,
-		ttl:    config.TTL,
-		mode:   config.Mode,
-		logger: slog.Default(),
+		name:       name,
+		url:        config.URL,
+		configPath: config.ConfigDir + "/" + config.ConfigFile,
+		zone:       config.Zone,
+		ttl:        config.TTL,
+		mode:       config.Mode,
+		logger:     slog.Default(),
 	}
 
 	for _, opt := range opts {
@@ -182,6 +186,29 @@ func (p *Provider) Name() string {
 // Type returns "pihole".
 func (p *Provider) Type() string {
 	return "pihole"
+}
+
+// Identity returns the backend identity for this provider instance.
+// Pi-hole identity depends on the operating mode:
+//   - API mode: identified by the admin URL and zone
+//   - File mode: identified by the dnsmasq config file path
+//
+// See provider.ProviderIdentity, issue #88.
+func (p *Provider) Identity() provider.ProviderIdentity {
+	switch p.mode {
+	case ModeFile:
+		return provider.ProviderIdentity{
+			Type:     "pihole",
+			Endpoint: "file:" + p.configPath,
+			Zone:     p.zone,
+		}
+	default: // ModeAPI and any future modes
+		return provider.ProviderIdentity{
+			Type:     "pihole",
+			Endpoint: p.url,
+			Zone:     p.zone,
+		}
+	}
 }
 
 // Capabilities returns the provider's feature support.

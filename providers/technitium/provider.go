@@ -14,6 +14,7 @@ import (
 // Provider implements provider.Provider for Technitium DNS Server.
 type Provider struct {
 	name             string
+	url              string // Technitium API URL (recorded for Identity reporting)
 	zone             string
 	ttl              int
 	autoHTTPSRecords bool   // Create companion HTTPS records for A/CNAME records
@@ -46,6 +47,7 @@ func New(name string, config *Config, opts ...ProviderOption) (*Provider, error)
 
 	p := &Provider{
 		name:             name,
+		url:              config.URL,
 		zone:             config.Zone,
 		ttl:              config.TTL,
 		autoHTTPSRecords: config.AutoHTTPSRecords,
@@ -105,6 +107,17 @@ func (p *Provider) Name() string {
 // Type returns "technitium".
 func (p *Provider) Type() string {
 	return "technitium"
+}
+
+// Identity returns the backend identity for this provider instance.
+// Two technitium instances are considered the same backend when they target
+// the same API URL and zone (see provider.ProviderIdentity, issue #88).
+func (p *Provider) Identity() provider.ProviderIdentity {
+	return provider.ProviderIdentity{
+		Type:     "technitium",
+		Endpoint: p.url,
+		Zone:     p.zone,
+	}
 }
 
 // Capabilities returns the provider's feature support.
