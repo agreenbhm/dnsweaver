@@ -132,6 +132,22 @@ func (p *Provider) Type() string {
 	return "cloudflare"
 }
 
+// Identity returns the backend identity for this provider instance.
+// Cloudflare zone IDs are globally unique across the Cloudflare API, so the
+// zone alone is sufficient to disambiguate backends. When only a zone name
+// was supplied, that is used instead (the lookup happens lazily on first
+// API call). See provider.ProviderIdentity, issue #88.
+func (p *Provider) Identity() provider.ProviderIdentity {
+	zone := p.zoneID
+	if zone == "" {
+		zone = p.zone
+	}
+	return provider.ProviderIdentity{
+		Type: "cloudflare",
+		Zone: zone,
+	}
+}
+
 // Capabilities returns the provider's feature support.
 // Cloudflare supports all features: TXT ownership, native update, and all record types.
 func (p *Provider) Capabilities() provider.Capabilities {

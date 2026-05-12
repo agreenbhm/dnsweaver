@@ -12,6 +12,8 @@ import (
 // Provider implements provider.Provider for dnsmasq DNS server.
 type Provider struct {
 	name          string
+	configPath    string // ConfigDir/ConfigFile, recorded for Identity reporting
+	sshHost       string // SSH host for remote dnsmasq (empty = local)
 	zone          string
 	ttl           int
 	reloadOnWrite bool
@@ -58,6 +60,8 @@ func New(name string, config *Config, opts ...ProviderOption) (*Provider, error)
 
 	p := &Provider{
 		name:          name,
+		configPath:    config.ConfigDir + "/" + config.ConfigFile,
+		sshHost:       config.SSHHost,
 		zone:          config.Zone,
 		ttl:           config.TTL,
 		reloadOnWrite: true, // Default: reload after writes
@@ -112,6 +116,23 @@ func (p *Provider) Name() string {
 // Type returns "dnsmasq".
 func (p *Provider) Type() string {
 	return "dnsmasq"
+}
+
+// Identity returns the backend identity for this provider instance.
+// Two dnsmasq instances are considered the same backend when they write to
+// the same config file on the same host. The endpoint encodes both the SSH
+// host (or "local" for local writes) and the absolute config path.
+// See provider.ProviderIdentity, issue #88.
+func (p *Provider) Identity() provider.ProviderIdentity {
+	host := p.sshHost
+	if host == "" {
+		host = "local"
+	}
+	return provider.ProviderIdentity{
+		Type:     "dnsmasq",
+		Endpoint: host + ":" + p.configPath,
+		Zone:     p.zone,
+	}
 }
 
 // Capabilities returns the provider's feature support.

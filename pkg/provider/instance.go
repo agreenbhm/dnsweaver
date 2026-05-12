@@ -84,6 +84,13 @@ type ProviderInstance struct {
 	// semantics). nil/empty means no metadata filtering — domain match alone
 	// decides ownership (full backward compatibility).
 	MetadataFilters map[string][]string
+
+	// Identity is the backend identity reported by the underlying Provider
+	// (or a conservative fallback for providers that don't implement
+	// Identifiable). The reconciler uses this together with RecordType to
+	// group overlapping providers so each distinct backend receives exactly
+	// one write per hostname per reconciliation. See identity.go and #88.
+	Identity ProviderIdentity
 }
 
 // Name returns the provider instance name (delegates to Provider).

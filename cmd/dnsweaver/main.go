@@ -210,6 +210,12 @@ func run() error {
 		return fmt.Errorf("initializing providers: %w", err)
 	}
 
+	// Surface backend identity collisions once at startup. When two instances
+	// share the same provider identity + record type they will race over the
+	// same physical records; the reconciler resolves this via first-match-wins
+	// (issue #86) but the user should be told their config is ambiguous.
+	providerRegistry.WarnDuplicateIdentities()
+
 	// Log provider status summary (manager background retry starts later, after health server)
 	if providerManager.PendingCount() > 0 {
 		logger.Warn("some providers failed to initialize and will be retried",

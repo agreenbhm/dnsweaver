@@ -16,6 +16,7 @@ import (
 // Provider implements provider.Provider for RFC 2136 Dynamic DNS servers.
 type Provider struct {
 	name    string
+	server  string // DNS server address (recorded for Identity reporting)
 	zone    string
 	ttl     int
 	client  *dnsupdate.Client
@@ -47,6 +48,7 @@ func New(name string, config *Config, opts ...ProviderOption) (*Provider, error)
 
 	p := &Provider{
 		name:   name,
+		server: config.Server,
 		zone:   config.Zone,
 		ttl:    config.TTL,
 		logger: slog.Default(),
@@ -89,6 +91,17 @@ func (p *Provider) Name() string {
 // Type returns "rfc2136".
 func (p *Provider) Type() string {
 	return "rfc2136"
+}
+
+// Identity returns the backend identity for this provider instance.
+// Two rfc2136 instances are considered the same backend when they target
+// the same DNS server and zone (see provider.ProviderIdentity, issue #88).
+func (p *Provider) Identity() provider.ProviderIdentity {
+	return provider.ProviderIdentity{
+		Type:     "rfc2136",
+		Endpoint: p.server,
+		Zone:     p.zone,
+	}
 }
 
 // Capabilities returns the provider's feature support.

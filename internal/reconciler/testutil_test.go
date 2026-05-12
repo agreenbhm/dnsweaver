@@ -70,6 +70,12 @@ type testMockProvider struct {
 	createFn     func(ctx context.Context, r provider.Record) error
 	deleteFn     func(ctx context.Context, r provider.Record) error
 	capabilities *provider.Capabilities // nil = default (supports everything)
+
+	// identity, when non-nil, is returned from Identity() so the mock
+	// participates in per-identity precedence (issue #88). When nil the
+	// mock falls back to provider.IdentityOf's type-only identity, which
+	// keeps legacy first-match-wins behavior for tests that don't care.
+	identity *provider.ProviderIdentity
 }
 
 func newTestMockProvider(name string) *testMockProvider {
@@ -84,6 +90,16 @@ func newTestMockProvider(name string) *testMockProvider {
 
 func (m *testMockProvider) Name() string { return m.name }
 func (m *testMockProvider) Type() string { return m.typeName }
+
+// Identity satisfies provider.Identifiable when m.identity is set, allowing
+// tests to exercise per-identity precedence (issue #88). When unset the
+// mock falls back to provider.IdentityOf's type-only identity.
+func (m *testMockProvider) Identity() provider.ProviderIdentity {
+	if m.identity != nil {
+		return *m.identity
+	}
+	return provider.ProviderIdentity{Type: m.typeName}
+}
 
 func (m *testMockProvider) Capabilities() provider.Capabilities {
 	if m.capabilities != nil {

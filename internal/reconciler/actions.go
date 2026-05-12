@@ -63,28 +63,48 @@ func (r *Reconciler) ensureRecord(ctx context.Context, hostname *source.Hostname
 		return actions
 	}
 
-	// First-match-wins: when multiple instances match the same hostname,
-	// the one declared earliest in DNSWEAVER_INSTANCES owns the record.
-	// Writing from every matching provider produces a record-flapping race
-	// (issue #86) because each instance overwrites the previous one's target
-	// on every reconciliation. Use ENTRYPOINTS or other metadata filters to
-	// make instance scopes mutually exclusive when both should be active.
-	winner := matchingProviders[0]
-	if len(matchingProviders) > 1 {
-		losers := make([]string, 0, len(matchingProviders)-1)
-		for _, inst := range matchingProviders[1:] {
-			losers = append(losers, inst.Name())
+	// Per-identity first-match-wins: when two instances share the same
+	// backend identity (Provider.Identity()) AND RecordType, they resolve
+	// to the same physical record store and would race if both wrote
+	// (issue #86 \u2014 each instance's cached view is stale relative to the
+	// other's writes, producing record flap). Within such a group, the
+	// instance declared earliest in DNSWEAVER_INSTANCES owns the record.
+	//
+	// Across distinct backends, every matching instance still writes \u2014
+	// publishing the same hostname into multiple actual DNS systems
+	// (e.g. Cloudflare + internal Technitium) is the supported use case
+	// dnsweaver was built for (issue #88).
+	//
+	// Identity collisions are also reported once at startup via
+	// Registry.WarnDuplicateIdentities; per-reconcile logging happens at
+	// DEBUG so we don't spam an already-reported config issue.
+	type writeKey struct {
+		Identity   provider.ProviderIdentity
+		RecordType provider.RecordType
+	}
+	writers := make([]*provider.ProviderInstance, 0, len(matchingProviders))
+	seen := make(map[writeKey]*provider.ProviderInstance, len(matchingProviders))
+	for _, inst := range matchingProviders {
+		k := writeKey{Identity: inst.Identity, RecordType: inst.RecordType}
+		if winner, exists := seen[k]; exists {
+			r.logger.Debug("skipping provider with duplicate backend identity; earlier instance owns this record",
+				slog.String("hostname", hostname.Name),
+				slog.String("skipped", inst.Name()),
+				slog.String("winner", winner.Name()),
+				slog.String("provider_type", k.Identity.Type),
+				slog.String("endpoint", k.Identity.Endpoint),
+				slog.String("zone", k.Identity.Zone),
+				slog.String("record_type", string(k.RecordType)),
+			)
+			continue
 		}
-		r.logger.Warn("multiple providers match hostname; using first by declaration order",
-			slog.String("hostname", hostname.Name),
-			slog.String("winner", winner.Name()),
-			slog.Any("skipped", losers),
-			slog.String("hint", "narrow scopes with DNSWEAVER_{NAME}_ENTRYPOINTS or other metadata filters"),
-		)
+		seen[k] = inst
+		writers = append(writers, inst)
 	}
 
-	action := r.ensureRecordForProvider(ctx, hostname, winner, cache)
-	actions = append(actions, action)
+	for _, inst := range writers {
+		actions = append(actions, r.ensureRecordForProvider(ctx, hostname, inst, cache))
+	}
 	return actions
 }
 

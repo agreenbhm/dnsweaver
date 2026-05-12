@@ -979,10 +979,15 @@ func TestEnsureOwnershipRecord_SkipsWhenCacheHasIt(t *testing.T) {
 // =============================================================================
 
 // TestEnsureRecord_MultipleMatchingProviders verifies first-match-wins
-// precedence (issue #86): when multiple instances match the same hostname,
-// only the first one in DNSWEAVER_INSTANCES declaration order writes the
-// record. The other matching instances are skipped to prevent the two
-// providers from overwriting each other's targets every reconciliation.
+// precedence (issue #86) when matching providers share the same backend
+// identity: only the first one in DNSWEAVER_INSTANCES declaration order
+// writes the record. The other matching instances are skipped to prevent
+// the providers from racing over the same physical record store.
+//
+// Mocks here both report the default mock identity (no Identity field set
+// — IdentityOf falls back to {Type: "mock"}), so they collide. For the
+// distinct-identity case where every backend writes, see
+// TestEnsureRecord_DistinctIdentities_AllWrite.
 func TestEnsureRecord_MultipleMatchingProviders(t *testing.T) {
 	mock1 := newTestMockProvider("internal-dns")
 	mock2 := newTestMockProvider("external-dns")
@@ -1054,6 +1059,216 @@ func TestEnsureRecord_MultipleMatchingProviders(t *testing.T) {
 	}
 	if createdMock2 != 0 {
 		t.Errorf("external-dns should NOT be called (loser), got %d", createdMock2)
+	}
+}
+
+// TestEnsureRecord_DistinctIdentities_AllWrite verifies the regression fix
+// for issue #88: when matching providers report different backend identities
+// (different physical DNS systems), every matching instance writes the
+// record. This is the core dnsweaver use case — publishing one hostname
+// into multiple actual DNS systems (e.g. internal Technitium + public
+// Cloudflare) simultaneously.
+func TestEnsureRecord_DistinctIdentities_AllWrite(t *testing.T) {
+	mockInternal := newTestMockProvider("internal-dns")
+	mockInternal.identity = &provider.ProviderIdentity{
+		Type:     "mock",
+		Endpoint: "http://internal.dns",
+		Zone:     "example.com",
+	}
+	mockExternal := newTestMockProvider("external-dns")
+	mockExternal.identity = &provider.ProviderIdentity{
+		Type:     "mock",
+		Endpoint: "http://external.dns",
+		Zone:     "example.com",
+	}
+
+	logger := quietLogger()
+	providers := provider.NewRegistry(logger)
+
+	var createdInternal, createdExternal int
+	mockInternal.createFn = func(_ context.Context, r provider.Record) error {
+		if r.Type != provider.RecordTypeTXT {
+			createdInternal++
+		}
+		return nil
+	}
+	mockExternal.createFn = func(_ context.Context, r provider.Record) error {
+		if r.Type != provider.RecordTypeTXT {
+			createdExternal++
+		}
+		return nil
+	}
+
+	providers.RegisterFactory("mock-internal", func(cfg provider.FactoryConfig) (provider.Provider, error) {
+		return mockInternal, nil
+	})
+	providers.RegisterFactory("mock-external", func(cfg provider.FactoryConfig) (provider.Provider, error) {
+		return mockExternal, nil
+	})
+
+	_ = providers.CreateInstance(provider.ProviderInstanceConfig{
+		Name:       "internal-dns",
+		TypeName:   "mock-internal",
+		RecordType: provider.RecordTypeA,
+		Target:     "10.0.0.1",
+		TTL:        300,
+		Domains:    []string{"*.example.com"},
+	})
+	_ = providers.CreateInstance(provider.ProviderInstanceConfig{
+		Name:       "external-dns",
+		TypeName:   "mock-external",
+		RecordType: provider.RecordTypeA,
+		Target:     "203.0.113.1",
+		TTL:        300,
+		Domains:    []string{"*.example.com"},
+	})
+
+	r := &Reconciler{
+		providers:      providers,
+		config:         Config{Enabled: true, OwnershipTracking: true},
+		logger:         logger,
+		knownHostnames: make(map[string]struct{}),
+	}
+	r.syncAtomics()
+
+	hostname := &source.Hostname{Name: "app.example.com", Source: "test"}
+	actions := r.ensureRecord(context.Background(), hostname, nil)
+
+	if len(actions) != 2 {
+		t.Fatalf("expected 2 actions (one per distinct backend), got %d", len(actions))
+	}
+	if createdInternal != 1 {
+		t.Errorf("internal-dns should be called once, got %d", createdInternal)
+	}
+	if createdExternal != 1 {
+		t.Errorf("external-dns should be called once, got %d", createdExternal)
+	}
+}
+
+// TestEnsureRecord_SameIdentityDifferentRecordType_AllWrite verifies that
+// two instances pointing at the same backend but writing different record
+// types (e.g. A vs AAAA on the same Cloudflare zone) do NOT collide — they
+// own disjoint records, so both must write. The precedence key is
+// (Identity, RecordType), not Identity alone.
+func TestEnsureRecord_SameIdentityDifferentRecordType_AllWrite(t *testing.T) {
+	mockA := newTestMockProvider("dns-a")
+	mockA.identity = &provider.ProviderIdentity{Type: "mock", Endpoint: "http://dns", Zone: "example.com"}
+	mockAAAA := newTestMockProvider("dns-aaaa")
+	mockAAAA.identity = &provider.ProviderIdentity{Type: "mock", Endpoint: "http://dns", Zone: "example.com"}
+
+	logger := quietLogger()
+	providers := provider.NewRegistry(logger)
+
+	var createdA, createdAAAA int
+	mockA.createFn = func(_ context.Context, r provider.Record) error {
+		if r.Type == provider.RecordTypeA {
+			createdA++
+		}
+		return nil
+	}
+	mockAAAA.createFn = func(_ context.Context, r provider.Record) error {
+		if r.Type == provider.RecordTypeAAAA {
+			createdAAAA++
+		}
+		return nil
+	}
+
+	providers.RegisterFactory("mock-a", func(cfg provider.FactoryConfig) (provider.Provider, error) { return mockA, nil })
+	providers.RegisterFactory("mock-aaaa", func(cfg provider.FactoryConfig) (provider.Provider, error) { return mockAAAA, nil })
+
+	_ = providers.CreateInstance(provider.ProviderInstanceConfig{
+		Name: "dns-a", TypeName: "mock-a",
+		RecordType: provider.RecordTypeA, Target: "10.0.0.1", TTL: 300,
+		Domains: []string{"*.example.com"},
+	})
+	_ = providers.CreateInstance(provider.ProviderInstanceConfig{
+		Name: "dns-aaaa", TypeName: "mock-aaaa",
+		RecordType: provider.RecordTypeAAAA, Target: "2001:db8::1", TTL: 300,
+		Domains: []string{"*.example.com"},
+	})
+
+	r := &Reconciler{
+		providers:      providers,
+		config:         Config{Enabled: true, OwnershipTracking: true},
+		logger:         logger,
+		knownHostnames: make(map[string]struct{}),
+	}
+	r.syncAtomics()
+
+	actions := r.ensureRecord(context.Background(), &source.Hostname{Name: "app.example.com", Source: "test"}, nil)
+
+	if len(actions) != 2 {
+		t.Fatalf("expected 2 actions (different record types are not a collision), got %d", len(actions))
+	}
+	if createdA != 1 {
+		t.Errorf("A record should be written once, got %d", createdA)
+	}
+	if createdAAAA != 1 {
+		t.Errorf("AAAA record should be written once, got %d", createdAAAA)
+	}
+}
+
+// TestEnsureRecord_SameIdentitySameRecordType_FirstWins is the explicit
+// counter-example to TestEnsureRecord_DistinctIdentities_AllWrite: two
+// instances pointing at the same backend with the same record type collide,
+// and the first by declaration order wins. This is the #86 race condition
+// that the per-identity logic still prevents.
+func TestEnsureRecord_SameIdentitySameRecordType_FirstWins(t *testing.T) {
+	id := provider.ProviderIdentity{Type: "mock", Endpoint: "http://shared.dns", Zone: "example.com"}
+	mock1 := newTestMockProvider("first")
+	mock1.identity = &id
+	mock2 := newTestMockProvider("second")
+	mock2.identity = &id
+
+	logger := quietLogger()
+	providers := provider.NewRegistry(logger)
+
+	var c1, c2 int
+	mock1.createFn = func(_ context.Context, r provider.Record) error {
+		if r.Type != provider.RecordTypeTXT {
+			c1++
+		}
+		return nil
+	}
+	mock2.createFn = func(_ context.Context, r provider.Record) error {
+		if r.Type != provider.RecordTypeTXT {
+			c2++
+		}
+		return nil
+	}
+
+	providers.RegisterFactory("mock-first", func(cfg provider.FactoryConfig) (provider.Provider, error) { return mock1, nil })
+	providers.RegisterFactory("mock-second", func(cfg provider.FactoryConfig) (provider.Provider, error) { return mock2, nil })
+
+	_ = providers.CreateInstance(provider.ProviderInstanceConfig{
+		Name: "first", TypeName: "mock-first",
+		RecordType: provider.RecordTypeA, Target: "10.0.0.1", TTL: 300,
+		Domains: []string{"*.example.com"},
+	})
+	_ = providers.CreateInstance(provider.ProviderInstanceConfig{
+		Name: "second", TypeName: "mock-second",
+		RecordType: provider.RecordTypeA, Target: "10.0.0.2", TTL: 300,
+		Domains: []string{"*.example.com"},
+	})
+
+	r := &Reconciler{
+		providers:      providers,
+		config:         Config{Enabled: true, OwnershipTracking: true},
+		logger:         logger,
+		knownHostnames: make(map[string]struct{}),
+	}
+	r.syncAtomics()
+
+	actions := r.ensureRecord(context.Background(), &source.Hostname{Name: "app.example.com", Source: "test"}, nil)
+
+	if len(actions) != 1 {
+		t.Fatalf("expected 1 action (collision collapsed to first), got %d", len(actions))
+	}
+	if actions[0].Provider != "first" {
+		t.Errorf("expected winner=first, got %q", actions[0].Provider)
+	}
+	if c1 != 1 || c2 != 0 {
+		t.Errorf("expected first=1 second=0, got first=%d second=%d", c1, c2)
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 // It manages DNS records via AdGuard Home's DNS Rewrite API.
 type Provider struct {
 	name   string
+	url    string // AdGuard Home URL (recorded for Identity reporting)
 	zone   string
 	ttl    int
 	client *Client
@@ -67,6 +68,7 @@ func New(name string, config *Config, opts ...ProviderOption) (*Provider, error)
 
 	p := &Provider{
 		name:   name,
+		url:    config.URL,
 		zone:   config.Zone,
 		ttl:    config.TTL,
 		logger: slog.Default(),
@@ -88,6 +90,17 @@ func (p *Provider) Name() string {
 // Type returns "adguard".
 func (p *Provider) Type() string {
 	return "adguard"
+}
+
+// Identity returns the backend identity for this provider instance.
+// Two adguard instances are considered the same backend when they target
+// the same AdGuard Home URL and zone (see provider.ProviderIdentity, issue #88).
+func (p *Provider) Identity() provider.ProviderIdentity {
+	return provider.ProviderIdentity{
+		Type:     "adguard",
+		Endpoint: p.url,
+		Zone:     p.zone,
+	}
 }
 
 // Capabilities returns the provider's feature support.
