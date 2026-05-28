@@ -153,6 +153,20 @@ In file mode, dnsweaver manages these files:
 !!! warning
     File mode requires dnsweaver to have write access to Pi-hole's config directory. Changes may require restarting Pi-hole's FTL service.
 
+## TLS Configuration (API Mode)
+
+When using API mode against a Pi-hole instance served over HTTPS — typically through a reverse proxy with a private CA — dnsweaver supports the unified TLS surface:
+
+| Env key | Purpose |
+|---------|---------|
+| `DNSWEAVER_PIHOLE_TLS_CA_FILE` | Trust a private CA bundle (PEM) |
+| `DNSWEAVER_PIHOLE_TLS_CERT_FILE` / `_TLS_KEY_FILE` | Present a client certificate (mTLS) |
+| `DNSWEAVER_PIHOLE_TLS_SERVER_NAME` | Override SNI / hostname verification |
+| `DNSWEAVER_PIHOLE_TLS_SKIP_VERIFY` | Disable verification (development only) |
+| `DNSWEAVER_PIHOLE_TLS_MIN_VERSION` | `1.2` (default) or `1.3` |
+
+The legacy `DNSWEAVER_PIHOLE_INSECURE_SKIP_VERIFY` variable still works but emits a deprecation warning and will be removed in v2.0. File mode does not perform HTTP requests so these keys have no effect there.
+
 ## Troubleshooting
 
 ### API Authentication Failed

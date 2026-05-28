@@ -1,8 +1,6 @@
 package cloudflare
 
 import (
-	"log/slog"
-
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/httputil"
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
 )
@@ -17,20 +15,14 @@ func Factory() provider.Factory {
 			return nil, err
 		}
 
-		// Create HTTP client with the factory's HTTP configuration
+		// TLS settings are framework-wide via cfg.HTTP.TLS; httputil emits
+		// its own WARN when verification is skipped.
 		httpClient := httputil.NewClient(&httputil.ClientConfig{
-			Timeout:       cfg.HTTP.Timeout,
-			TLSSkipVerify: cfg.HTTP.TLSSkipVerify,
-			UserAgent:     cfg.HTTP.UserAgent,
-			Logger:        cfg.HTTP.Logger,
+			Timeout:   cfg.HTTP.Timeout,
+			TLS:       cfg.HTTP.TLS,
+			UserAgent: cfg.HTTP.UserAgent,
+			Logger:    cfg.HTTP.Logger,
 		})
-
-		// Log warning if TLS verification is disabled
-		if cfg.HTTP.TLSSkipVerify && cfg.HTTP.Logger != nil {
-			cfg.HTTP.Logger.Warn("TLS certificate verification disabled for Cloudflare provider",
-				slog.String("provider", cfg.Name),
-			)
-		}
 
 		// Create the provider with the pre-configured HTTP client
 		return New(cfg.Name, providerCfg,

@@ -398,13 +398,17 @@ func TestLoadInstanceConfig_InsecureSkipVerify(t *testing.T) {
 		t.Fatal("expected provider instance 'skip-test' to exist")
 	}
 
-	// Verify INSECURE_SKIP_VERIFY is in ProviderConfig
-	skipVerify, ok := inst.ProviderConfig["INSECURE_SKIP_VERIFY"]
+	// Verify INSECURE_SKIP_VERIFY is migrated to canonical TLS_SKIP_VERIFY in ProviderConfig
+	skipVerify, ok := inst.ProviderConfig["TLS_SKIP_VERIFY"]
 	if !ok {
-		t.Error("INSECURE_SKIP_VERIFY not found in ProviderConfig")
+		t.Error("TLS_SKIP_VERIFY not found in ProviderConfig (legacy INSECURE_SKIP_VERIFY should be migrated)")
 	}
 	if skipVerify != "true" {
-		t.Errorf("INSECURE_SKIP_VERIFY = %q, want %q", skipVerify, "true")
+		t.Errorf("TLS_SKIP_VERIFY = %q, want %q", skipVerify, "true")
+	}
+	// Legacy key should not leak through after migration
+	if _, leaked := inst.ProviderConfig["INSECURE_SKIP_VERIFY"]; leaked {
+		t.Error("legacy INSECURE_SKIP_VERIFY should not remain in ProviderConfig after migration")
 	}
 }
 

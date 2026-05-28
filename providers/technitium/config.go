@@ -17,11 +17,10 @@ const DefaultHTTPSALPN = "h2"
 
 // Config holds Technitium-specific configuration.
 type Config struct {
-	URL                string // Technitium API URL (e.g., http://dns:5380)
-	Token              string // API token
-	Zone               string // DNS zone to manage
-	TTL                int    // Record TTL (defaults to DefaultTTL)
-	InsecureSkipVerify bool   // Skip TLS certificate verification (use with caution)
+	URL   string // Technitium API URL (e.g., http://dns:5380)
+	Token string // API token
+	Zone  string // DNS zone to manage
+	TTL   int    // Record TTL (defaults to DefaultTTL)
 
 	// AutoHTTPSRecords enables automatic companion HTTPS (SVCB Type 65) record creation.
 	// When true (the default for Technitium), creating an A or CNAME record also creates a
@@ -101,11 +100,6 @@ func LoadConfig(instanceName string) (*Config, error) {
 			return nil, fmt.Errorf("invalid TTL value %q: %w", ttlStr, err)
 		}
 		config.TTL = ttl
-	}
-
-	// Parse optional InsecureSkipVerify
-	if skipStr := getEnv(prefix + "INSECURE_SKIP_VERIFY"); skipStr != "" {
-		config.InsecureSkipVerify = strings.EqualFold(skipStr, "true") || skipStr == "1"
 	}
 
 	// Parse optional AutoHTTPSRecords (companion HTTPS record creation)
@@ -196,11 +190,6 @@ func LoadConfigFromMap(instanceName string, configMap map[string]string) (*Confi
 			return nil, fmt.Errorf("invalid TTL value %q: %w", ttlStr, err)
 		}
 		config.TTL = ttl
-	}
-
-	// Parse optional InsecureSkipVerify
-	if skipStr, ok := configMap["INSECURE_SKIP_VERIFY"]; ok && skipStr != "" {
-		config.InsecureSkipVerify = strings.EqualFold(skipStr, "true") || skipStr == "1"
 	}
 
 	// Parse optional AutoHTTPSRecords

@@ -1,8 +1,6 @@
 package pihole
 
 import (
-	"log/slog"
-
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/httputil"
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
 )
@@ -22,23 +20,15 @@ func Factory() provider.Factory {
 			WithProviderLogger(cfg.HTTP.Logger),
 		}
 
-		// Only create HTTP client for API mode
+		// Only create HTTP client for API mode. File mode never touches the
+		// network, so no TLS configuration applies.
 		if providerCfg.Mode == ModeAPI {
 			httpClient := httputil.NewClient(&httputil.ClientConfig{
-				Timeout:       cfg.HTTP.Timeout,
-				TLSSkipVerify: cfg.HTTP.TLSSkipVerify,
-				UserAgent:     cfg.HTTP.UserAgent,
-				Logger:        cfg.HTTP.Logger,
+				Timeout:   cfg.HTTP.Timeout,
+				TLS:       cfg.HTTP.TLS,
+				UserAgent: cfg.HTTP.UserAgent,
+				Logger:    cfg.HTTP.Logger,
 			})
-
-			// Log warning if TLS verification is disabled
-			if cfg.HTTP.TLSSkipVerify && cfg.HTTP.Logger != nil {
-				cfg.HTTP.Logger.Warn("TLS certificate verification disabled for Pi-hole provider",
-					slog.String("provider", cfg.Name),
-					slog.String("url", providerCfg.URL),
-				)
-			}
-
 			opts = append(opts, WithProviderHTTPClient(httpClient))
 		}
 

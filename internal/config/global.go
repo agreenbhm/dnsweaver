@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -88,8 +90,17 @@ type GlobalConfig struct {
 	ProxmoxTagFilter    string // Optional: prefix match on PVE tags to filter workloads
 	ProxmoxStateFilter  string // Filter by PVE resource status (default: "running")
 	ProxmoxDomainSuffix string // Domain suffix to append to VM names (e.g., "home.example.com")
-	ProxmoxVerifyTLS    bool   // Verify TLS certificate on PVE API endpoint
+	ProxmoxVerifyTLS    bool   // Verify TLS certificate on PVE API endpoint (DEPRECATED in v1.5: prefer ProxmoxTLSSkipVerify)
 	ProxmoxTargetMode   string // Target resolution mode: "guest-ip" (default) or "instance"
+
+	// Unified PVE TLS configuration (v1.5+). Populated from DNSWEAVER_PROXMOX_TLS_*
+	// env vars and consumed by internal/proxmox via httputil.TLSConfig.
+	ProxmoxTLSCAFile     string
+	ProxmoxTLSCertFile   string
+	ProxmoxTLSKeyFile    string
+	ProxmoxTLSServerName string
+	ProxmoxTLSSkipVerify bool
+	ProxmoxTLSMinVersion string
 
 	// Multi-instance coordination
 	InstanceID string // Unique identifier for this dnsweaver instance (for shared zone management)
@@ -364,6 +375,30 @@ func loadGlobalConfig() (*GlobalConfig, []*ConfigError) {
 	}
 	if v := getEnv("DNSWEAVER_PROXMOX_VERIFY_TLS"); v != "" {
 		cfg.ProxmoxVerifyTLS = parseBool(v, false)
+	}
+
+	// Unified PVE TLS env vars (v1.5+). The legacy DNSWEAVER_PROXMOX_VERIFY_TLS
+	// is honored as a back-compat alias (inverted polarity) with a deprecation
+	// warning. When both are set, the new TLS_SKIP_VERIFY wins and a conflict
+	// warning is emitted. Legacy alias is scheduled for removal in v2.0.
+	cfg.ProxmoxTLSCAFile = getEnv("DNSWEAVER_PROXMOX_TLS_CA_FILE")
+	cfg.ProxmoxTLSCertFile = getEnv("DNSWEAVER_PROXMOX_TLS_CERT_FILE")
+	cfg.ProxmoxTLSKeyFile = getEnv("DNSWEAVER_PROXMOX_TLS_KEY_FILE")
+	cfg.ProxmoxTLSServerName = getEnv("DNSWEAVER_PROXMOX_TLS_SERVER_NAME")
+	cfg.ProxmoxTLSMinVersion = getEnv("DNSWEAVER_PROXMOX_TLS_MIN_VERSION")
+
+	skipNew, hasNew := os.LookupEnv("DNSWEAVER_PROXMOX_TLS_SKIP_VERIFY")
+	_, hasLegacy := os.LookupEnv("DNSWEAVER_PROXMOX_VERIFY_TLS")
+	switch {
+	case hasNew && hasLegacy:
+		slog.Warn("both DNSWEAVER_PROXMOX_VERIFY_TLS (deprecated) and DNSWEAVER_PROXMOX_TLS_SKIP_VERIFY are set; the new TLS_SKIP_VERIFY value wins. Remove VERIFY_TLS — it will be removed in v2.0.")
+		cfg.ProxmoxTLSSkipVerify = parseBool(skipNew, false)
+	case hasNew:
+		cfg.ProxmoxTLSSkipVerify = parseBool(skipNew, false)
+	case hasLegacy:
+		slog.Warn("DNSWEAVER_PROXMOX_VERIFY_TLS is deprecated; use DNSWEAVER_PROXMOX_TLS_SKIP_VERIFY instead (legacy alias will be removed in v2.0)")
+		// Invert polarity: VERIFY_TLS=true → TLS_SKIP_VERIFY=false
+		cfg.ProxmoxTLSSkipVerify = !cfg.ProxmoxVerifyTLS
 	}
 
 	return cfg, errs
