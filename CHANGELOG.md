@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-05-28
+
 ### Added
 - **Unified TLS configuration across every HTTP provider and the Proxmox
   source** ([GitHub #89](https://github.com/maxfield-allison/dnsweaver/issues/89),
