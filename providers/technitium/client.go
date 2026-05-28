@@ -133,13 +133,26 @@ func WithLogger(logger *slog.Logger) ClientOption {
 // WithInsecureSkipVerify configures the client to skip TLS certificate verification.
 // WARNING: This should only be used for testing or when connecting to servers with
 // self-signed certificates. It is insecure and should not be used in production.
+//
+// Deprecated: TLS settings are now configured framework-wide via the unified
+// httputil.TLSConfig wired through FactoryConfig.HTTP.TLS. This option remains
+// for backward compatibility with callers that construct Client directly; when
+// used, it replaces only the transport's TLS config rather than the entire
+// http.Client, so it composes with prior WithHTTPClient(…) calls.
 func WithInsecureSkipVerify(skip bool) ClientOption {
 	return func(c *Client) {
-		if skip {
-			c.httpClient = httputil.NewClient(&httputil.ClientConfig{
-				TLSSkipVerify: true,
-			})
+		if !skip {
+			return
 		}
+		// Build a fresh client that inherits stdlib transport defaults
+		// (HTTP/2, proxy env, connection pool) and only flips the
+		// skip-verify bit. This intentionally REPLACES c.httpClient
+		// rather than mutating its transport in place because the
+		// previously-set client may share its transport with other
+		// callers — mutating it would leak the change globally.
+		c.httpClient = httputil.NewClient(&httputil.ClientConfig{
+			TLS: &httputil.TLSConfig{InsecureSkip: true},
+		})
 	}
 }
 

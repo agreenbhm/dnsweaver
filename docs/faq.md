@@ -228,13 +228,38 @@ Verify credentials:
 
 ### "TLS certificate verification failed"
 
-For self-signed certificates:
+For servers using a private/internal CA, supply the CA bundle so the chain
+validates normally:
 
 ```yaml
-- DNSWEAVER_{INSTANCE}_INSECURE_SKIP_VERIFY=true
+- DNSWEAVER_{INSTANCE}_TLS_CA_FILE=/run/secrets/internal_ca.pem
 ```
 
-Or add the CA certificate to dnsweaver's trust store.
+For mutual-TLS (server requires a client certificate):
+
+```yaml
+- DNSWEAVER_{INSTANCE}_TLS_CA_FILE=/run/secrets/internal_ca.pem
+- DNSWEAVER_{INSTANCE}_TLS_CERT_FILE=/run/secrets/dnsweaver.crt
+- DNSWEAVER_{INSTANCE}_TLS_KEY_FILE=/run/secrets/dnsweaver.key
+```
+
+If you connect by IP but the certificate is issued for a hostname, override
+the SNI / verification name:
+
+```yaml
+- DNSWEAVER_{INSTANCE}_TLS_SERVER_NAME=dns.internal.example.com
+```
+
+As a last resort for self-signed certificates that cannot be supplied as a CA
+bundle, you can disable verification entirely — this removes MITM protection
+and is **not recommended for production**:
+
+```yaml
+- DNSWEAVER_{INSTANCE}_TLS_SKIP_VERIFY=true
+```
+
+The legacy `INSECURE_SKIP_VERIFY` variable still works but emits a deprecation
+warning and will be removed in v2.0.
 
 ### Records created but not resolving
 

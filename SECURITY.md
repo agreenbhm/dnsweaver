@@ -4,7 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.0.x   | :white_check_mark: |
+| 1.x     | :white_check_mark: |
 | < 1.0   | :x:                |
 
 Only the latest patch release of the current major.minor version receives
@@ -56,6 +56,12 @@ dnsweaver follows these security practices:
   production images
 - **Input validation:** Shell metacharacter filtering, HTTP response body limits,
   and DNS record validation at all input boundaries
+- **TLS 1.2 minimum, with TLS 1.3 opt-in:** Every outbound HTTPS connection
+  (provider APIs and the Proxmox source) pins a minimum TLS protocol version
+  of 1.2 by default. Custom CAs (`TLS_CA_FILE`) and mutual-TLS client
+  certificates (`TLS_CERT_FILE` / `TLS_KEY_FILE`) are first-class config; the
+  legacy `INSECURE_SKIP_VERIFY` toggle is retained only as a deprecated alias
+  and emits a startup warning.
 
 ## Dependency Management
 

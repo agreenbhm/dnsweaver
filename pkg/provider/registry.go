@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gitlab.bluewillows.net/root/dnsweaver/internal/matcher"
+	"gitlab.bluewillows.net/root/dnsweaver/pkg/httputil"
 )
 
 // HTTPConfig contains HTTP client configuration passed from the framework to providers.
@@ -18,7 +19,16 @@ type HTTPConfig struct {
 	// Timeout is the HTTP client timeout.
 	Timeout time.Duration
 
-	// TLSSkipVerify controls whether to skip TLS certificate verification.
+	// TLS is the unified per-instance TLS configuration (custom CA, mTLS,
+	// SNI override, min version, skip-verify). Nil or zero means "use
+	// stdlib defaults". Providers should pass this verbatim to
+	// httputil.NewClient — no per-provider TLS interpretation should be
+	// required.
+	TLS *httputil.TLSConfig
+
+	// TLSSkipVerify is a legacy convenience shortcut for TLS.InsecureSkip.
+	// Retained for back-compat with provider factories that have not yet
+	// migrated to the unified TLS struct. Deprecated: prefer TLS.
 	TLSSkipVerify bool
 
 	// UserAgent is the User-Agent header to use for requests.
@@ -105,13 +115,19 @@ func (r *Registry) CreateInstance(cfg ProviderInstanceConfig) error {
 		return fmt.Errorf("unknown provider type: %s", cfg.TypeName)
 	}
 
-	// Build FactoryConfig with HTTP settings from GlobalConfig
+	// Build FactoryConfig with HTTP settings, lifting any per-instance TLS
+	// settings out of ProviderConfig so every HTTP-based factory consumes
+	// them through the same shared HTTPConfig.TLS field rather than each
+	// re-parsing the map. The TLS_* keys are added to providerConfigFields
+	// in internal/config and so always live in the map when set.
+	tlsCfg := extractTLSConfig(cfg.ProviderConfig, r.logger, cfg.Name)
 	factoryCfg := FactoryConfig{
 		Name:           cfg.Name,
 		ProviderConfig: cfg.ProviderConfig,
 		HTTP: HTTPConfig{
-			// HTTP config populated at factory level; GlobalConfig integration deferred
-			Logger: r.logger,
+			TLS:           tlsCfg,
+			TLSSkipVerify: tlsCfg != nil && tlsCfg.InsecureSkip,
+			Logger:        r.logger,
 		},
 	}
 

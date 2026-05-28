@@ -175,6 +175,20 @@ services:
       - DNSWEAVER_ADGUARD_PASSWORD=your-password
 ```
 
+## TLS Configuration
+
+AdGuard Home is often fronted by a reverse proxy with a private CA or self-signed certificate. dnsweaver supports the unified TLS surface used by every HTTP provider:
+
+| Env key | Purpose |
+|---------|---------|
+| `DNSWEAVER_ADGUARD_TLS_CA_FILE` | Trust a private CA bundle (PEM) |
+| `DNSWEAVER_ADGUARD_TLS_CERT_FILE` / `_TLS_KEY_FILE` | Present a client certificate (mTLS) |
+| `DNSWEAVER_ADGUARD_TLS_SERVER_NAME` | Override SNI / hostname verification |
+| `DNSWEAVER_ADGUARD_TLS_SKIP_VERIFY` | Disable verification (development only) |
+| `DNSWEAVER_ADGUARD_TLS_MIN_VERSION` | `1.2` (default) or `1.3` |
+
+The legacy `DNSWEAVER_ADGUARD_INSECURE_SKIP_VERIFY` variable still works but emits a deprecation warning and will be removed in v2.0. See the [environment reference](../configuration/environment.md) for complete recipes.
+
 ## Troubleshooting
 
 ### Authentication Failed

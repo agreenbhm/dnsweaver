@@ -208,7 +208,39 @@ func loadInstanceConfig(instanceName string, defaultTTL int) (*ProviderInstanceC
 		}
 	}
 
+	// Resolve the legacy INSECURE_SKIP_VERIFY alias. The new canonical name
+	// is TLS_SKIP_VERIFY. If both are set, the new name wins and we log a
+	// conflict; if only the legacy name is set, promote it and log a
+	// one-line deprecation notice. The legacy key is always stripped from
+	// the map so downstream consumers see only the canonical TLS_* keys.
+	resolveLegacyTLSSkipVerify(cfg.ProviderConfig, instanceName)
+
 	return cfg, errs
+}
+
+// resolveLegacyTLSSkipVerify migrates DNSWEAVER_{NAME}_INSECURE_SKIP_VERIFY
+// into TLS_SKIP_VERIFY in the per-instance ProviderConfig map and emits a
+// deprecation warning when the legacy key is in use. Removed: v2.0.
+func resolveLegacyTLSSkipVerify(cfgMap map[string]string, instanceName string) {
+	const (
+		legacy    = "INSECURE_SKIP_VERIFY"
+		canonical = "TLS_SKIP_VERIFY"
+	)
+	legacyVal, hasLegacy := cfgMap[legacy]
+	_, hasCanonical := cfgMap[canonical]
+	switch {
+	case hasLegacy && hasCanonical:
+		slog.Warn("both DNSWEAVER_{NAME}_INSECURE_SKIP_VERIFY (deprecated) and DNSWEAVER_{NAME}_TLS_SKIP_VERIFY are set; the new TLS_SKIP_VERIFY value wins. Remove INSECURE_SKIP_VERIFY — it will be removed in v2.0.",
+			slog.String("instance", instanceName),
+		)
+		delete(cfgMap, legacy)
+	case hasLegacy:
+		slog.Warn("DNSWEAVER_{NAME}_INSECURE_SKIP_VERIFY is deprecated; use DNSWEAVER_{NAME}_TLS_SKIP_VERIFY instead (the legacy name will be removed in v2.0)",
+			slog.String("instance", instanceName),
+		)
+		cfgMap[canonical] = legacyVal
+		delete(cfgMap, legacy)
+	}
 }
 
 // providerConfigFields defines all provider-specific configuration fields.
@@ -237,9 +269,17 @@ var providerConfigFields = []struct {
 	{"ACCESS_MODE", false},          // Pi-hole specific (api/file) — renamed from MODE in v0.10.0
 	{"USERNAME", false},             // AdGuard Home specific
 	{"PASSWORD", true},              // Pi-hole and AdGuard Home specific
-	{"INSECURE_SKIP_VERIFY", false}, // TLS certificate verification skip
-	{"AUTO_HTTPS_RECORDS", false},   // Technitium-specific: companion HTTPS record creation
-	{"AUTO_HTTPS_ALPN", false},      // Technitium-specific: ALPN value for companion HTTPS records
+	{"INSECURE_SKIP_VERIFY", false}, // DEPRECATED: alias for TLS_SKIP_VERIFY, kept one release
+	// Unified TLS fields — consumed by pkg/provider/extractTLSConfig and
+	// passed to every HTTP-based provider via FactoryConfig.HTTP.TLS.
+	{"TLS_CA_FILE", false},        // PEM CA bundle path (appended to system roots)
+	{"TLS_CERT_FILE", false},      // mTLS client certificate path
+	{"TLS_KEY_FILE", false},       // mTLS client key path
+	{"TLS_SERVER_NAME", false},    // SNI / verification hostname override
+	{"TLS_SKIP_VERIFY", false},    // Bypass certificate verification (warning logged)
+	{"TLS_MIN_VERSION", false},    // "1.2" or "1.3" (default "1.2")
+	{"AUTO_HTTPS_RECORDS", false}, // Technitium-specific: companion HTTPS record creation
+	{"AUTO_HTTPS_ALPN", false},    // Technitium-specific: ALPN value for companion HTTPS records
 	// RFC 2136 specific fields
 	{"SERVER", false},         // RFC 2136: DNS server address (host:port)
 	{"TSIG_KEY_NAME", false},  // RFC 2136: TSIG key name
@@ -315,6 +355,10 @@ func mergeProviderEnvOverrides(cfg *ProviderInstanceConfig) {
 			cfg.Mode = mode
 		}
 	}
+
+	// Migrate the legacy INSECURE_SKIP_VERIFY alias (whether it arrived
+	// from YAML or env vars) to the canonical TLS_SKIP_VERIFY key.
+	resolveLegacyTLSSkipVerify(cfg.ProviderConfig, cfg.Name)
 }
 
 // splitPatterns splits a comma-separated pattern string into individual patterns.

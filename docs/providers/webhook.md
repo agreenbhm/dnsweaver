@@ -166,6 +166,20 @@ def handle_record():
         return jsonify({'status': 'deleted'}), 200
 ```
 
+## TLS Configuration
+
+Webhook endpoints frequently live on internal services with private CAs or mTLS requirements. dnsweaver exposes the unified TLS surface to the webhook provider:
+
+| Env key | Purpose |
+|---------|---------|
+| `DNSWEAVER_WEBHOOK_TLS_CA_FILE` | Trust a private CA bundle (PEM) |
+| `DNSWEAVER_WEBHOOK_TLS_CERT_FILE` / `_TLS_KEY_FILE` | Present a client certificate (mTLS) |
+| `DNSWEAVER_WEBHOOK_TLS_SERVER_NAME` | Override SNI / hostname verification |
+| `DNSWEAVER_WEBHOOK_TLS_SKIP_VERIFY` | Disable verification (development only) |
+| `DNSWEAVER_WEBHOOK_TLS_MIN_VERSION` | `1.2` (default) or `1.3` |
+
+The legacy `DNSWEAVER_WEBHOOK_INSECURE_SKIP_VERIFY` variable still works but emits a deprecation warning and will be removed in v2.0.
+
 ## Troubleshooting
 
 ### Connection Refused

@@ -36,7 +36,13 @@ environment:
 | `DOMAINS` | Yes | - | Glob patterns to match |
 | `EXCLUDE_DOMAINS` | No | - | Patterns to exclude |
 | `TTL` | No | `300` | Record TTL in seconds |
-| `INSECURE_SKIP_VERIFY` | No | `false` | Skip TLS certificate verification |
+| `TLS_CA_FILE` | No | — | PEM CA bundle appended to system roots (private CAs) |
+| `TLS_CERT_FILE` | No | — | PEM client cert for mutual TLS (pair with `TLS_KEY_FILE`) |
+| `TLS_KEY_FILE` | No | — | PEM client key for mutual TLS |
+| `TLS_SERVER_NAME` | No | — | SNI / verification hostname override |
+| `TLS_MIN_VERSION` | No | `1.2` | Minimum TLS protocol version (`1.2` or `1.3`) |
+| `TLS_SKIP_VERIFY` | No | `false` | Skip TLS certificate verification. Prefer `TLS_CA_FILE`. |
+| `INSECURE_SKIP_VERIFY` | No | `false` | **Deprecated** alias of `TLS_SKIP_VERIFY` (removed in v2.0) |
 | `AUTO_HTTPS_RECORDS` | No | `true` | Auto-create companion HTTPS records (see below) |
 | `AUTO_HTTPS_ALPN` | No | `h2` | ALPN protocol for companion HTTPS records |
 
@@ -138,14 +144,38 @@ curl "http://dns-server:5380/api/zones/list?token=YOUR_TOKEN"
 
 ### TLS Certificate Errors
 
-For self-signed certificates, either:
-
-1. Add the CA to dnsweaver's trust store
-2. Use `INSECURE_SKIP_VERIFY=true` (not recommended for production)
+For servers using a private CA (e.g. an internal step-ca or Smallstep PKI),
+provide the CA bundle so the certificate chain validates normally:
 
 ```yaml
-- DNSWEAVER_TECHNITIUM_INSECURE_SKIP_VERIFY=true
+- DNSWEAVER_TECHNITIUM_TLS_CA_FILE=/run/secrets/internal_ca.pem
 ```
+
+For mutual-TLS (server requires a client cert):
+
+```yaml
+- DNSWEAVER_TECHNITIUM_TLS_CA_FILE=/run/secrets/internal_ca.pem
+- DNSWEAVER_TECHNITIUM_TLS_CERT_FILE=/run/secrets/dnsweaver.crt
+- DNSWEAVER_TECHNITIUM_TLS_KEY_FILE=/run/secrets/dnsweaver.key
+```
+
+If the server's certificate CN/SAN differs from the URL host (e.g. you connect
+by IP but the cert is issued for a hostname), set an SNI override:
+
+```yaml
+- DNSWEAVER_TECHNITIUM_TLS_SERVER_NAME=dns.internal.example.com
+```
+
+As a last resort for self-signed certs that cannot be supplied as a CA bundle,
+you can disable verification entirely — this removes MITM protection and is
+**not recommended for production**:
+
+```yaml
+- DNSWEAVER_TECHNITIUM_TLS_SKIP_VERIFY=true
+```
+
+The legacy `DNSWEAVER_TECHNITIUM_INSECURE_SKIP_VERIFY` variable still works
+but emits a deprecation warning and will be removed in v2.0.
 
 ## Companion HTTPS Records
 

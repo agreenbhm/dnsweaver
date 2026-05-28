@@ -34,7 +34,13 @@ flowchart LR
 | `DNSWEAVER_PROXMOX_TOKEN_ID` | **Yes** | — | API token ID, e.g. `root@pam!dnsweaver` |
 | `DNSWEAVER_PROXMOX_TOKEN_SECRET` | **Yes** | — | API token secret (UUID). Supports `_FILE` suffix. |
 | `DNSWEAVER_PROXMOX_TOKEN_SECRET_FILE` | Alt | — | Path to a file containing the token secret (Docker secrets) |
-| `DNSWEAVER_PROXMOX_VERIFY_TLS` | No | `false` | Set `true` to verify the PVE API TLS certificate |
+| `DNSWEAVER_PROXMOX_TLS_CA_FILE` | No | — | Path to PEM CA bundle that issued the PVE certificate (typical for homelab CAs). |
+| `DNSWEAVER_PROXMOX_TLS_CERT_FILE` | No | — | Client certificate for mutual TLS against the PVE API (pair with `TLS_KEY_FILE`). |
+| `DNSWEAVER_PROXMOX_TLS_KEY_FILE` | No | — | Client private key for mutual TLS. |
+| `DNSWEAVER_PROXMOX_TLS_SERVER_NAME` | No | — | SNI / verification hostname override. |
+| `DNSWEAVER_PROXMOX_TLS_MIN_VERSION` | No | `1.2` | Minimum TLS protocol version (`1.2` or `1.3`). |
+| `DNSWEAVER_PROXMOX_TLS_SKIP_VERIFY` | No | `false` | Skip PVE TLS certificate verification. Prefer `TLS_CA_FILE`. |
+| `DNSWEAVER_PROXMOX_VERIFY_TLS` | No | `true` | **Deprecated** inverted-polarity alias of `TLS_SKIP_VERIFY` (removed in v2.0). |
 | `DNSWEAVER_PROXMOX_NODE_FILTER` | No | _(all nodes)_ | Restrict discovery to a single PVE node name |
 | `DNSWEAVER_PROXMOX_TAG_FILTER` | No | _(all tags)_ | Only include resources with this tag (prefix match) |
 | `DNSWEAVER_PROXMOX_STATE_FILTER` | No | `running` | PVE resource status filter (`running`, `stopped`, etc.) |
@@ -180,7 +186,8 @@ services:
       DNSWEAVER_PROXMOX_URL: https://pve-00.home.example.com:8006
       DNSWEAVER_PROXMOX_TOKEN_ID: dnsweaver@pve!dnsweaver
       DNSWEAVER_PROXMOX_TOKEN_SECRET_FILE: /run/secrets/pve_token
-      DNSWEAVER_PROXMOX_VERIFY_TLS: "true"
+      # Trust the internal CA that issued the PVE certificate.
+      DNSWEAVER_PROXMOX_TLS_CA_FILE: /run/secrets/internal_ca
       DNSWEAVER_PROXMOX_DOMAIN_SUFFIX: home.example.com
       DNSWEAVER_PROXMOX_TAG_FILTER: dnsweaver
     secrets:
@@ -225,8 +232,8 @@ spec:
                 secretKeyRef:
                   name: dnsweaver-proxmox
                   key: token-secret
-            - name: DNSWEAVER_PROXMOX_VERIFY_TLS
-              value: "true"
+            - name: DNSWEAVER_PROXMOX_TLS_CA_FILE
+              value: /etc/dnsweaver/tls/internal_ca.pem
             - name: DNSWEAVER_PROXMOX_DOMAIN_SUFFIX
               value: home.example.com
 ```
@@ -274,17 +281,31 @@ DNSWEAVER_PROXMOX_STATE_FILTER=running
 
 ### TLS certificate errors
 
-If the PVE API uses a self-signed certificate (common in homelabs):
+If the PVE API uses a certificate from a private/internal CA (typical in
+homelabs), provide the CA bundle so the chain validates normally:
 
 ```bash
-DNSWEAVER_PROXMOX_VERIFY_TLS=false  # default; accepts self-signed certs
+DNSWEAVER_PROXMOX_TLS_CA_FILE=/run/secrets/internal_ca.pem
 ```
 
-To enforce certificate verification with a valid cert:
+For mutual-TLS environments (PVE in front of an mTLS proxy):
 
 ```bash
-DNSWEAVER_PROXMOX_VERIFY_TLS=true
+DNSWEAVER_PROXMOX_TLS_CA_FILE=/run/secrets/internal_ca.pem
+DNSWEAVER_PROXMOX_TLS_CERT_FILE=/run/secrets/dnsweaver.crt
+DNSWEAVER_PROXMOX_TLS_KEY_FILE=/run/secrets/dnsweaver.key
 ```
+
+As a last resort for self-signed certificates that cannot be provided as a CA
+bundle, you can disable verification entirely — this removes MITM protection
+and is **not recommended for production**:
+
+```bash
+DNSWEAVER_PROXMOX_TLS_SKIP_VERIFY=true
+```
+
+The legacy `DNSWEAVER_PROXMOX_VERIFY_TLS` variable (note inverted polarity)
+still works but emits a deprecation warning and will be removed in v2.0.
 
 ### No records created
 

@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Unified TLS configuration across every HTTP provider and the Proxmox
+  source** ([GitHub #89](https://github.com/maxfield-allison/dnsweaver/issues/89),
+  GitLab #183). A single `httputil.TLSConfig` now drives TLS for `technitium`,
+  `adguard`, `cloudflare`, `pihole`, `webhook`, and the Proxmox VE client.
+  New per-instance environment variables (also accepted as
+  `DNSWEAVER_PROXMOX_TLS_*`):
+  - `DNSWEAVER_{NAME}_TLS_CA_FILE` — PEM CA bundle **appended** to the system
+    trust pool (private/internal CAs no longer require disabling verification).
+  - `DNSWEAVER_{NAME}_TLS_CERT_FILE` / `_TLS_KEY_FILE` — client certificate
+    for **mutual TLS** authentication (resolves the original ask in #89).
+  - `DNSWEAVER_{NAME}_TLS_SERVER_NAME` — SNI / verification hostname override
+    for IP-addressed connections or split-horizon names.
+  - `DNSWEAVER_{NAME}_TLS_MIN_VERSION` — `1.2` (default) or `1.3`.
+  - `DNSWEAVER_{NAME}_TLS_SKIP_VERIFY` — canonical name for the legacy
+    `INSECURE_SKIP_VERIFY` flag.
+- TLS minimum version pinned explicitly to **TLS 1.2** by default. See
+  `SECURITY.md`.
+
+### Changed
+- **Proxmox HTTP client now uses a transport cloned from
+  `http.DefaultTransport`** instead of a bare `&http.Transport{}`. This enables
+  HTTP/2 negotiation, proxy environment variables, dial/idle timeouts, and
+  shared connection pooling for PVE API traffic — previously all of these were
+  silently disabled.
+- The shared `httputil` client preserves the same cloned-transport behavior
+  whenever a custom TLS configuration is supplied (including skip-verify),
+  fixing a long-standing transport-loss bug.
+- `technitium.Client.WithInsecureSkipVerify(bool)` now **composes** with any
+  pre-existing HTTP client options instead of replacing the entire
+  `httpClient`, preventing accidental loss of user-supplied timeouts or
+  transports.
+
+### Deprecated
+- `DNSWEAVER_{NAME}_INSECURE_SKIP_VERIFY` — use `DNSWEAVER_{NAME}_TLS_SKIP_VERIFY`.
+  The legacy variable is auto-migrated at load time with a `WARN` log; it will
+  be removed in v2.0.
+- `DNSWEAVER_PROXMOX_VERIFY_TLS` (note the inverted polarity) — use
+  `DNSWEAVER_PROXMOX_TLS_SKIP_VERIFY`. Auto-migrated at load time with a
+  `WARN` log; will be removed in v2.0.
+
+### Fixed
+- `httputil.NewClient` no longer discards `http.DefaultTransport` when
+  configured with `TLSSkipVerify=true`. HTTP/2 and the shared connection pool
+  are now preserved in every TLS configuration. Regression test added.
+- Registry HTTP-level `TLSSkipVerify` is now actually consumed by provider
+  factories (previously it was set but the per-provider TLS path always took
+  precedence, making the registry-level toggle dead code).
+
 ### Security
 - Bump `golang.org/x/crypto` to `v0.52.0` and `golang.org/x/net` to `v0.55.0`
   to patch govulncheck advisories GO-2026-5013, GO-2026-5017, GO-2026-5018,

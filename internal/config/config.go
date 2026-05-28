@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+
+	"gitlab.bluewillows.net/root/dnsweaver/pkg/httputil"
 )
 
 // Config holds the complete application configuration.
@@ -342,8 +344,41 @@ func (c *Config) ProxmoxTargetMode() string {
 }
 
 // ProxmoxVerifyTLS returns whether to verify TLS on the PVE API endpoint.
+//
+// Deprecated: prefer ProxmoxTLS().InsecureSkip (inverted polarity). Retained
+// so the legacy env var DNSWEAVER_PROXMOX_VERIFY_TLS continues to flow through
+// the same Config accessor for one release; will be removed in v2.0.
 func (c *Config) ProxmoxVerifyTLS() bool {
 	return c.Global.ProxmoxVerifyTLS
+}
+
+// ProxmoxTLS returns the unified TLS configuration for the PVE API client.
+// Returns nil when no DNSWEAVER_PROXMOX_TLS_* env vars are set AND the legacy
+// DNSWEAVER_PROXMOX_VERIFY_TLS was also unset — in that case the client uses
+// stdlib defaults (system roots, verification on, TLS 1.2 floor).
+func (c *Config) ProxmoxTLS() *httputil.TLSConfig {
+	g := c.Global
+	tls := httputil.TLSConfig{
+		CAFile:       g.ProxmoxTLSCAFile,
+		CertFile:     g.ProxmoxTLSCertFile,
+		KeyFile:      g.ProxmoxTLSKeyFile,
+		ServerName:   g.ProxmoxTLSServerName,
+		InsecureSkip: g.ProxmoxTLSSkipVerify,
+	}
+	if g.ProxmoxTLSMinVersion != "" {
+		if parsed, err := httputil.ParseTLSMinVersion(g.ProxmoxTLSMinVersion); err == nil {
+			tls.MinVersion = parsed
+		} else {
+			slog.Warn("ignoring invalid DNSWEAVER_PROXMOX_TLS_MIN_VERSION, using default",
+				slog.String("value", g.ProxmoxTLSMinVersion),
+				slog.String("error", err.Error()),
+			)
+		}
+	}
+	if tls.IsZero() {
+		return nil
+	}
+	return &tls
 }
 
 // GetProviderInstance returns the configuration for a specific provider instance.

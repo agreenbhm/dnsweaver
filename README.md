@@ -20,6 +20,7 @@ dnsweaver watches Docker events, Kubernetes resources, and Proxmox VE clusters t
 - 🖥️ **Proxmox VE** — Auto-creates A records for VMs (via QEMU guest agent) and LXC containers
 - 🏗️ **Multi-Instance Safe** — Run multiple dnsweaver instances on the same DNS zone without conflicts
 - 🔒 **Socket Proxy Compatible** — Connect via TCP to a Docker socket proxy for improved security
+- 🛡️ **Hardened TLS** — Unified per-instance TLS controls (custom CA, mTLS client certs, SNI override, configurable min version; TLS 1.2 floor by default) for every HTTP-based provider and the Proxmox source
 - 🏷️ **Traefik Integration** — Parses `traefik.http.routers.*.rule` labels to extract hostnames
 - 🚀 **Caddy Integration** — Parses `caddy` / `caddy_<n>` labels from [caddy-docker-proxy](https://github.com/lucaslorentz/caddy-docker-proxy)
 - 🔧 **nginx-proxy Integration** — Parses `VIRTUAL_HOST` labels used by [jwilder/nginx-proxy](https://github.com/nginx-proxy/nginx-proxy)
@@ -114,6 +115,20 @@ flowchart LR
 | [Docker Swarm](https://maxfield-allison.github.io/dnsweaver/deployment/swarm/) | Swarm deployment guide |
 | [Observability](https://maxfield-allison.github.io/dnsweaver/observability/) | Metrics, logging, and health checks |
 | [FAQ](https://maxfield-allison.github.io/dnsweaver/faq/) | Common questions and troubleshooting |
+
+### TLS Configuration
+
+Every HTTP-based provider (Technitium, AdGuard Home, Cloudflare, Pi-hole, Webhook) and the Proxmox source share a single TLS configuration surface:
+
+| Env key (per instance) | Purpose |
+|------------------------|---------|
+| `DNSWEAVER_<NAME>_TLS_CA_FILE` | Trust a private CA bundle (PEM) |
+| `DNSWEAVER_<NAME>_TLS_CERT_FILE` / `_TLS_KEY_FILE` | Present a client certificate (mTLS) |
+| `DNSWEAVER_<NAME>_TLS_SERVER_NAME` | Override SNI / hostname verification |
+| `DNSWEAVER_<NAME>_TLS_SKIP_VERIFY` | Disable verification (development only) |
+| `DNSWEAVER_<NAME>_TLS_MIN_VERSION` | `1.2` (default) or `1.3` |
+
+The Proxmox source uses the same keys under `DNSWEAVER_PROXMOX_TLS_*`. The legacy `*_INSECURE_SKIP_VERIFY` and `DNSWEAVER_PROXMOX_VERIFY_TLS` variables are still accepted but emit a deprecation warning at startup — migrate to the unified `TLS_SKIP_VERIFY` keys. See the [Environment Reference](https://maxfield-allison.github.io/dnsweaver/configuration/environment/) and [SECURITY.md](SECURITY.md) for full details and recipes.
 
 ## Kubernetes Quick Start
 
