@@ -1,8 +1,6 @@
 package webhook
 
 import (
-	"log/slog"
-
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/httputil"
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
 )
@@ -17,25 +15,16 @@ func Factory() provider.Factory {
 			return nil, err
 		}
 
-		// Create HTTP client with the factory's HTTP configuration
-		// Note: Webhook provider has its own timeout handling via config.Timeout,
-		// but we use the factory's HTTP config for TLS, user-agent, and logging
+		// TLS settings (custom CA, mTLS, SNI, skip-verify) are framework-wide
+		// via cfg.HTTP.TLS. Webhook keeps its own timeout knob in providerCfg;
+		// the framework HTTP timeout is the fallback.
 		httpClient := httputil.NewClient(&httputil.ClientConfig{
-			Timeout:       cfg.HTTP.Timeout,
-			TLSSkipVerify: cfg.HTTP.TLSSkipVerify,
-			UserAgent:     cfg.HTTP.UserAgent,
-			Logger:        cfg.HTTP.Logger,
+			Timeout:   cfg.HTTP.Timeout,
+			TLS:       cfg.HTTP.TLS,
+			UserAgent: cfg.HTTP.UserAgent,
+			Logger:    cfg.HTTP.Logger,
 		})
 
-		// Log warning if TLS verification is disabled
-		if cfg.HTTP.TLSSkipVerify && cfg.HTTP.Logger != nil {
-			cfg.HTTP.Logger.Warn("TLS certificate verification disabled for Webhook provider",
-				slog.String("provider", cfg.Name),
-				slog.String("url", providerCfg.URL),
-			)
-		}
-
-		// Create the provider with the pre-configured HTTP client
 		return New(cfg.Name, providerCfg,
 			WithProviderHTTPClient(httpClient),
 			WithProviderLogger(cfg.HTTP.Logger),

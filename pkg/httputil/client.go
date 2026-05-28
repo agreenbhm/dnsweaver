@@ -3,11 +3,14 @@ package httputil
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -18,16 +21,158 @@ const (
 
 	// DefaultUserAgent is used when no custom user agent is specified.
 	DefaultUserAgent = "dnsweaver/1.0"
+
+	// DefaultTLSMinVersion is the minimum TLS protocol version negotiated by
+	// default. TLS 1.2 is pinned explicitly rather than relying on the Go
+	// stdlib floor so the choice is auditable and stable across toolchain
+	// upgrades.
+	DefaultTLSMinVersion uint16 = tls.VersionTLS12
 )
+
+// TLSConfig holds shared TLS settings used by every HTTP-based provider and
+// source. It is consumed by NewClient and may be reused unchanged by future
+// non-HTTP transports (e.g. gRPC).
+//
+// Zero-value semantics: an empty TLSConfig produces a nil *tls.Config from
+// Build(), which means "use stdlib defaults". This makes it safe to embed in
+// configuration structs without forcing every caller to populate it.
+type TLSConfig struct {
+	// CAFile is the path to a PEM-encoded CA bundle that will be APPENDED to
+	// the system root pool. Leave empty to trust only the system roots.
+	// Use this when the upstream server presents a certificate issued by a
+	// private CA that is not in the container image's trust store.
+	CAFile string
+
+	// CertFile is the path to a PEM-encoded client certificate used for
+	// mutual TLS authentication. Must be set together with KeyFile.
+	CertFile string
+
+	// KeyFile is the path to the PEM-encoded private key for the client
+	// certificate. Must be set together with CertFile.
+	KeyFile string
+
+	// ServerName overrides the hostname used for SNI and certificate
+	// verification. Leave empty to derive it from the request URL (the
+	// normal Go behavior).
+	ServerName string
+
+	// InsecureSkip bypasses certificate verification entirely. WARNING:
+	// only use this for testing or against self-signed certificates whose
+	// chain cannot be supplied via CAFile. NewClient logs a WARN when this
+	// is enabled.
+	InsecureSkip bool
+
+	// MinVersion is the minimum TLS protocol version. Defaults to
+	// DefaultTLSMinVersion (TLS 1.2) when zero. Accepts tls.VersionTLS12
+	// and tls.VersionTLS13.
+	MinVersion uint16
+}
+
+// IsZero reports whether the TLSConfig has any non-default settings.
+// A zero TLSConfig contributes no *tls.Config to the resulting client.
+func (t TLSConfig) IsZero() bool {
+	return t.CAFile == "" &&
+		t.CertFile == "" &&
+		t.KeyFile == "" &&
+		t.ServerName == "" &&
+		!t.InsecureSkip &&
+		t.MinVersion == 0
+}
+
+// Build materializes the TLSConfig into a *tls.Config.
+// Returns (nil, nil) when no settings are configured, signaling to callers
+// that stdlib defaults should be used. Returns an error when CAFile cannot
+// be read or parsed, or when CertFile/KeyFile do not load as a valid
+// X.509 keypair.
+//
+// When CertFile or KeyFile is set, both must be set.
+func (t TLSConfig) Build() (*tls.Config, error) {
+	if t.IsZero() {
+		return nil, nil
+	}
+
+	minVersion := t.MinVersion
+	if minVersion == 0 {
+		minVersion = DefaultTLSMinVersion
+	}
+
+	out := &tls.Config{
+		MinVersion:         minVersion,
+		ServerName:         t.ServerName,
+		InsecureSkipVerify: t.InsecureSkip, //nolint:gosec // operator-controlled; warning logged by caller
+	}
+
+	if t.CAFile != "" {
+		pem, err := os.ReadFile(t.CAFile)
+		if err != nil {
+			return nil, fmt.Errorf("reading TLS CA file %q: %w", t.CAFile, err)
+		}
+		// Clone the system pool so we add to system trust rather than
+		// replacing it. SystemCertPool may fail on platforms without a
+		// usable system pool (e.g. minimal scratch images); fall back to
+		// an empty pool in that case so the CAFile still takes effect.
+		pool, err := x509.SystemCertPool()
+		if err != nil || pool == nil {
+			pool = x509.NewCertPool()
+		}
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, fmt.Errorf("TLS CA file %q contained no valid PEM certificates", t.CAFile)
+		}
+		out.RootCAs = pool
+	}
+
+	// Client certificate (mTLS). Both halves required together.
+	certSet := t.CertFile != ""
+	keySet := t.KeyFile != ""
+	if certSet != keySet {
+		return nil, fmt.Errorf("TLS CertFile and KeyFile must both be set for mTLS (got CertFile=%q KeyFile=%q)", t.CertFile, t.KeyFile)
+	}
+	if certSet {
+		cert, err := tls.LoadX509KeyPair(t.CertFile, t.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("loading TLS client keypair (cert=%q key=%q): %w", t.CertFile, t.KeyFile, err)
+		}
+		out.Certificates = []tls.Certificate{cert}
+	}
+
+	return out, nil
+}
+
+// ParseTLSMinVersion converts a user-facing version string (e.g. "1.2", "1.3",
+// "TLS1.2", "tls1.3") into the matching tls.VersionTLS* constant. Returns 0
+// and an error for unrecognized inputs. An empty string returns (0, nil) so
+// callers can apply their own default.
+func ParseTLSMinVersion(s string) (uint16, error) {
+	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.TrimPrefix(s, "tls")
+	s = strings.TrimPrefix(s, "v")
+	switch s {
+	case "":
+		return 0, nil
+	case "1.2", "12":
+		return tls.VersionTLS12, nil
+	case "1.3", "13":
+		return tls.VersionTLS13, nil
+	default:
+		return 0, fmt.Errorf("unsupported TLS min version %q (use \"1.2\" or \"1.3\")", s)
+	}
+}
 
 // ClientConfig contains configuration for creating an HTTP client.
 type ClientConfig struct {
 	// Timeout is the HTTP client timeout. Defaults to 30 seconds.
 	Timeout time.Duration
 
-	// TLSSkipVerify controls whether to skip TLS certificate verification.
-	// WARNING: This should only be used for testing or when connecting to
-	// servers with self-signed certificates. It is insecure for production.
+	// TLS is the unified TLS configuration. When nil (or zero-valued),
+	// stdlib defaults are used. When non-nil, the configured settings are
+	// merged into a transport CLONED from http.DefaultTransport so that
+	// HTTP/2 negotiation, proxy env vars, dial/idle timeouts, and the
+	// shared connection pool are preserved.
+	TLS *TLSConfig
+
+	// TLSSkipVerify is a legacy shortcut for TLS.InsecureSkip. When TLS is
+	// nil and this is true, NewClient internally promotes it to a
+	// TLSConfig{InsecureSkip: true}. Deprecated: prefer TLS.InsecureSkip.
 	TLSSkipVerify bool
 
 	// UserAgent is the User-Agent header to set on requests.
@@ -116,6 +261,17 @@ func (t *userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error
 
 // NewClient creates an HTTP client with the specified configuration.
 // If cfg is nil, defaults are used (30s timeout, TLS verification enabled).
+//
+// When cfg.TLS is non-nil and not zero-valued, the client's transport is
+// cloned from http.DefaultTransport and the configured *tls.Config is
+// applied to the clone. This preserves HTTP/2, proxy environment handling,
+// idle timeouts, and the stdlib connection pool — all of which a bare
+// &http.Transport{TLSClientConfig: …} would silently discard.
+//
+// On TLS construction errors NewClient logs the error and returns a client
+// using stdlib defaults; it does not return an error so that the existing
+// signature stays back-compatible. Providers that need fail-fast behavior
+// should call TLSConfig.Build() themselves before constructing the client.
 func NewClient(cfg *ClientConfig) *http.Client {
 	if cfg == nil {
 		cfg = &ClientConfig{}
@@ -132,19 +288,21 @@ func NewClient(cfg *ClientConfig) *http.Client {
 		userAgent = DefaultUserAgent
 	}
 
-	// Start with default transport
-	baseTransport := http.DefaultTransport
-
-	// Configure TLS if needed
-	if cfg.TLSSkipVerify {
-		baseTransport = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true, //nolint:gosec // Intentional: user explicitly requested skip
-			},
-		}
+	// Promote the legacy TLSSkipVerify shortcut into a TLSConfig so all
+	// downstream logic operates on the single unified type.
+	tlsCfg := cfg.TLS
+	if tlsCfg == nil && cfg.TLSSkipVerify {
+		tlsCfg = &TLSConfig{InsecureSkip: true}
 	}
 
-	// Wrap with User-Agent and logging transport
+	baseTransport := buildTransport(tlsCfg, cfg.Logger)
+
+	// Warn loudly when verification is skipped — operators frequently set
+	// this once for debugging and forget to remove it.
+	if tlsCfg != nil && tlsCfg.InsecureSkip && cfg.Logger != nil {
+		cfg.Logger.Warn("TLS certificate verification disabled — connections are vulnerable to MITM")
+	}
+
 	transport := &userAgentTransport{
 		base:      baseTransport,
 		userAgent: userAgent,
@@ -155,6 +313,41 @@ func NewClient(cfg *ClientConfig) *http.Client {
 		Timeout:   timeout,
 		Transport: transport,
 	}
+}
+
+// buildTransport returns the base RoundTripper for NewClient. When tlsCfg is
+// nil or zero, http.DefaultTransport is returned unchanged so we share the
+// stdlib's global connection pool. Otherwise DefaultTransport is CLONED and
+// the materialized *tls.Config is applied to the clone.
+func buildTransport(tlsCfg *TLSConfig, logger *slog.Logger) http.RoundTripper {
+	if tlsCfg == nil || tlsCfg.IsZero() {
+		return http.DefaultTransport
+	}
+
+	built, err := tlsCfg.Build()
+	if err != nil {
+		// We can't fail the constructor without breaking the existing
+		// signature, but we MUST surface the misconfiguration. Log loudly
+		// and fall back to stdlib defaults — the request will then fail
+		// with a clear x509 error rather than silently bypassing TLS.
+		if logger != nil {
+			logger.Error("TLS configuration failed to build, falling back to stdlib defaults",
+				slog.String("error", err.Error()),
+			)
+		}
+		return http.DefaultTransport
+	}
+
+	// Clone the default transport to inherit HTTP/2, proxy, dial, idle, and
+	// pool defaults. Fall back to a fresh &http.Transport{} only if the
+	// stdlib's default ever changes type (shouldn't happen in practice).
+	defaultHTTPTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return &http.Transport{TLSClientConfig: built}
+	}
+	cloned := defaultHTTPTransport.Clone()
+	cloned.TLSClientConfig = built
+	return cloned
 }
 
 // NewClientWithTransport creates an HTTP client with custom transport settings.

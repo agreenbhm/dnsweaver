@@ -113,6 +113,20 @@ environment:
   - DNSWEAVER_EXTERNAL_PROXIED=true
 ```
 
+## TLS Configuration
+
+Cloudflare's public API uses publicly-trusted certificates so the defaults work out of the box. The TLS surface is still available for environments that proxy outbound traffic through an inspecting middlebox with its own CA:
+
+| Env key | Purpose |
+|---------|---------|
+| `DNSWEAVER_CLOUDFLARE_TLS_CA_FILE` | Trust an additional CA bundle (PEM) — e.g. a corporate TLS-inspecting proxy |
+| `DNSWEAVER_CLOUDFLARE_TLS_CERT_FILE` / `_TLS_KEY_FILE` | Present a client certificate (mTLS) |
+| `DNSWEAVER_CLOUDFLARE_TLS_SERVER_NAME` | Override SNI / hostname verification |
+| `DNSWEAVER_CLOUDFLARE_TLS_SKIP_VERIFY` | Disable verification (development only — **never** in production) |
+| `DNSWEAVER_CLOUDFLARE_TLS_MIN_VERSION` | `1.2` (default) or `1.3` |
+
+The legacy `DNSWEAVER_CLOUDFLARE_INSECURE_SKIP_VERIFY` variable still works but emits a deprecation warning and will be removed in v2.0.
+
 ## Troubleshooting
 
 ### Authentication Error

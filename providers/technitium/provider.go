@@ -73,16 +73,13 @@ func New(name string, config *Config, opts ...ProviderOption) (*Provider, error)
 	// Build client options
 	clientOpts := []ClientOption{WithLogger(p.logger)}
 
-	// Add insecure skip verify if configured
-	if config.InsecureSkipVerify {
-		clientOpts = append(clientOpts, WithInsecureSkipVerify(true))
-		p.logger.Warn("TLS certificate verification disabled for Technitium provider",
-			slog.String("provider", name),
-			slog.String("url", config.URL),
-		)
-	}
-
-	// Create the API client with the same logger
+	// Create the API client with the same logger.
+	// NOTE: TLS settings (custom CA, mTLS, skip-verify) are configured at
+	// the framework level via FactoryConfig.HTTP.TLS and applied to the
+	// shared HTTP client constructed in the factory. The legacy path
+	// (calling New() directly with InsecureSkipVerify in Config) used to
+	// override the client here; that bespoke knob was removed in v1.5 in
+	// favor of the unified httputil.TLSConfig.
 	p.client = NewClient(config.URL, config.Token, clientOpts...)
 
 	return p, nil

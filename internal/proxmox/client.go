@@ -27,13 +27,14 @@ package proxmox
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"time"
+
+	"gitlab.bluewillows.net/root/dnsweaver/pkg/httputil"
 )
 
 // ClientConfig holds configuration for the Proxmox API client.
@@ -50,8 +51,19 @@ type ClientConfig struct {
 	TokenSecret string
 
 	// VerifyTLS controls TLS certificate verification.
-	// Set to false only for self-signed certificates in homelab environments.
+	//
+	// Deprecated: use TLS for full control (CA bundle, mTLS, SNI, min version,
+	// skip-verify). When TLS is non-nil, VerifyTLS is ignored. Retained so the
+	// legacy DNSWEAVER_PROXMOX_VERIFY_TLS env var path still works for one
+	// release; will be removed in v2.0.
 	VerifyTLS bool
+
+	// TLS is the unified TLS configuration. When non-nil, it fully describes
+	// the TLS behavior (custom CA, mTLS, SNI, min version, skip-verify). When
+	// nil and VerifyTLS is false, the client falls back to skip-verify for
+	// back-compat with the old behavior; when nil and VerifyTLS is true the
+	// client uses stdlib defaults (system roots, TLS 1.2 floor).
+	TLS *httputil.TLSConfig
 
 	// HTTPTimeout is the HTTP client timeout. Defaults to 15 seconds if zero.
 	HTTPTimeout time.Duration
@@ -91,20 +103,27 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 		logger = slog.Default()
 	}
 
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: !cfg.VerifyTLS, //nolint:gosec // intentional; operator controls this via config
-		},
+	// Resolve the effective TLS configuration. Precedence:
+	//   1. cfg.TLS (the unified path used by v1.5+ callers)
+	//   2. legacy cfg.VerifyTLS=false → InsecureSkip=true
+	//   3. otherwise stdlib defaults (TLS=nil)
+	tlsCfg := cfg.TLS
+	if tlsCfg == nil && !cfg.VerifyTLS {
+		tlsCfg = &httputil.TLSConfig{InsecureSkip: true}
 	}
+
+	httpClient := httputil.NewClient(&httputil.ClientConfig{
+		Timeout:   timeout,
+		TLS:       tlsCfg,
+		UserAgent: httputil.DefaultUserAgent,
+		Logger:    logger,
+	})
 
 	return &Client{
 		baseURL:     cfg.BaseURL,
 		tokenHeader: "PVEAPIToken=" + cfg.TokenID + "=" + cfg.TokenSecret,
-		http: &http.Client{
-			Timeout:   timeout,
-			Transport: transport,
-		},
-		logger: logger,
+		http:        httpClient,
+		logger:      logger,
 	}, nil
 }
 
