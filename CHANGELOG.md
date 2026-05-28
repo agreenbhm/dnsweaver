@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Bump `golang.org/x/crypto` to `v0.52.0` and `golang.org/x/net` to `v0.55.0`
+  to patch govulncheck advisories GO-2026-5013, GO-2026-5017, GO-2026-5018,
+  GO-2026-5019, GO-2026-5020 (x/crypto) and GO-2026-5026 (x/net). Closes #184.
+
 ## [1.4.6] - 2026-05-12
 
 ### Fixed
