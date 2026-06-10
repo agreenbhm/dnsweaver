@@ -34,8 +34,12 @@ type Client struct {
 	logger        *slog.Logger
 	mu            sync.RWMutex
 
-	// FileSystem abstraction for testing
+	// FileSystem abstraction for testing and remote (SFTP) operation.
 	fs FileSystem
+
+	// CommandRunner executes the reload command. Defaults to local exec,
+	// but is replaced with an SSH-backed runner when SSH mode is enabled.
+	runner CommandRunner
 }
 
 // FileSystem abstracts file operations for testing.
@@ -112,6 +116,17 @@ func WithFileSystem(fs FileSystem) ClientOption {
 	}
 }
 
+// WithCommandRunner sets a custom command runner for executing the reload
+// command. When SSH mode is enabled, this is an SSH-backed runner so the
+// reload executes on the remote host instead of inside the dnsweaver container.
+func WithCommandRunner(runner CommandRunner) ClientOption {
+	return func(c *Client) {
+		if runner != nil {
+			c.runner = runner
+		}
+	}
+}
+
 // NewClient creates a new dnsmasq client.
 func NewClient(configDir, configFile, reloadCommand, zone string, opts ...ClientOption) *Client {
 	c := &Client{
@@ -125,6 +140,11 @@ func NewClient(configDir, configFile, reloadCommand, zone string, opts ...Client
 
 	for _, opt := range opts {
 		opt(c)
+	}
+
+	// Default to local command execution unless an explicit runner was provided.
+	if c.runner == nil {
+		c.runner = &osCommandRunner{logger: c.logger}
 	}
 
 	return c
@@ -414,9 +434,10 @@ func (c *Client) fileHeader() string {
 }
 
 // Reload signals dnsmasq to reload its configuration.
+// The reload command runs via the configured CommandRunner: locally by
+// default, or on the remote host over SSH when SSH mode is enabled.
 func (c *Client) Reload(ctx context.Context) error {
-	runner := &osCommandRunner{logger: c.logger}
-	return runner.Run(ctx, c.reloadCommand)
+	return c.runner.Run(ctx, c.reloadCommand)
 }
 
 // ReloadWithRunner signals dnsmasq to reload using a custom runner.

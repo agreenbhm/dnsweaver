@@ -247,6 +247,14 @@ type Updater interface {
 	Update(ctx context.Context, existing, desired Record) error
 }
 
+// Closer is an optional interface that providers can implement to release
+// resources held for the lifetime of the instance (e.g. SSH/SFTP sessions or
+// database connections). The registry calls Close on shutdown for any provider
+// that implements it. Implementations must be safe to call multiple times.
+type Closer interface {
+	Close() error
+}
+
 // RecordEquals returns true if two records are logically equal.
 // Provider-specific IDs are not compared.
 func RecordEquals(a, b Record) bool {

@@ -21,6 +21,12 @@ const DefaultConfigFile = "dnsweaver.conf"
 // DefaultReloadCommand is the default command to reload dnsmasq configuration.
 const DefaultReloadCommand = "systemctl reload dnsmasq"
 
+// DefaultSSHStrictHostKey is the default for SSH host key verification.
+// Verification is on by default (fail closed): a remote SSH instance must
+// either provide a known_hosts file or explicitly opt out by setting
+// SSH_STRICT_HOST_KEY_CHECKING=false.
+const DefaultSSHStrictHostKey = true
+
 // Config holds dnsmasq-specific configuration.
 type Config struct {
 	ConfigDir     string // Directory for config files (e.g., /etc/dnsmasq.d)
@@ -35,6 +41,10 @@ type Config struct {
 	SSHUser     string // SSH username
 	SSHKeyFile  string // Path to SSH private key file
 	SSHPassword string // SSH password (alternative to key, not recommended)
+
+	// SSH host key verification (optional, recommended for untrusted networks)
+	SSHKnownHostsFile string // Path to an OpenSSH known_hosts file; enables host key verification
+	SSHStrictHostKey  bool   // Require host key verification; fails if no known_hosts file is provided
 }
 
 // Validate checks that all required configuration is present.
@@ -65,6 +75,12 @@ func (c *Config) Validate() error {
 		// Either key or password required (but key preferred)
 		if c.SSHKeyFile == "" && c.SSHPassword == "" {
 			errs = append(errs, "SSH_KEY_FILE or SSH_PASSWORD is required when SSH is enabled")
+		}
+		// Strict host key checking needs a known_hosts file to verify against.
+		// Strict is the default, so guide the operator to either provide a
+		// known_hosts file or explicitly opt out.
+		if c.SSHStrictHostKey && c.SSHKnownHostsFile == "" {
+			errs = append(errs, "SSH host key verification is enabled by default: set SSH_KNOWN_HOSTS_FILE to a known_hosts file, or set SSH_STRICT_HOST_KEY_CHECKING=false to disable verification (insecure)")
 		}
 	}
 
@@ -102,19 +118,23 @@ func (c *Config) ConfigFilePath() string {
 //   - SSH_USER: SSH username (required if SSH_HOST set)
 //   - SSH_KEY_FILE: Path to SSH private key (supports _FILE suffix for Docker secrets)
 //   - SSH_PASSWORD: SSH password (not recommended, use SSH_KEY_FILE)
+//   - SSH_KNOWN_HOSTS_FILE: Path to an OpenSSH known_hosts file (enables host key verification)
+//   - SSH_STRICT_HOST_KEY_CHECKING: Require host key verification (default: true)
 func LoadConfig(instanceName string) (*Config, error) {
 	prefix := envPrefix(instanceName)
 
 	config := &Config{
-		ConfigDir:     getEnvWithDefault(prefix+"CONFIG_DIR", DefaultConfigDir),
-		ConfigFile:    getEnvWithDefault(prefix+"CONFIG_FILE", DefaultConfigFile),
-		ReloadCommand: getEnvWithDefault(prefix+"RELOAD_COMMAND", DefaultReloadCommand),
-		Zone:          getEnv(prefix + "ZONE"),
-		TTL:           DefaultTTL,
-		SSHHost:       getEnv(prefix + "SSH_HOST"),
-		SSHUser:       getEnv(prefix + "SSH_USER"),
-		SSHKeyFile:    getEnvOrFile(prefix+"SSH_KEY_FILE", prefix+"SSH_KEY_FILE_FILE"),
-		SSHPassword:   getEnvOrFile(prefix+"SSH_PASSWORD", prefix+"SSH_PASSWORD_FILE"),
+		ConfigDir:         getEnvWithDefault(prefix+"CONFIG_DIR", DefaultConfigDir),
+		ConfigFile:        getEnvWithDefault(prefix+"CONFIG_FILE", DefaultConfigFile),
+		ReloadCommand:     getEnvWithDefault(prefix+"RELOAD_COMMAND", DefaultReloadCommand),
+		Zone:              getEnv(prefix + "ZONE"),
+		TTL:               DefaultTTL,
+		SSHHost:           getEnv(prefix + "SSH_HOST"),
+		SSHUser:           getEnv(prefix + "SSH_USER"),
+		SSHKeyFile:        getEnvOrFile(prefix+"SSH_KEY_FILE", prefix+"SSH_KEY_FILE_FILE"),
+		SSHPassword:       getEnvOrFile(prefix+"SSH_PASSWORD", prefix+"SSH_PASSWORD_FILE"),
+		SSHKnownHostsFile: getEnvOrFile(prefix+"SSH_KNOWN_HOSTS_FILE", prefix+"SSH_KNOWN_HOSTS_FILE_FILE"),
+		SSHStrictHostKey:  parseBoolEnvDefault(prefix+"SSH_STRICT_HOST_KEY_CHECKING", DefaultSSHStrictHostKey),
 	}
 
 	// Parse optional TTL
@@ -149,18 +169,21 @@ func LoadConfig(instanceName string) (*Config, error) {
 // configuration that was already parsed from environment variables.
 //
 // Required keys: CONFIG_DIR, CONFIG_FILE, RELOAD_COMMAND
-// Optional keys: ZONE, TTL, SSH_HOST, SSH_PORT, SSH_USER, SSH_KEY_FILE, SSH_PASSWORD
+// Optional keys: ZONE, TTL, SSH_HOST, SSH_PORT, SSH_USER, SSH_KEY_FILE, SSH_PASSWORD,
+// SSH_KNOWN_HOSTS_FILE, SSH_STRICT_HOST_KEY_CHECKING
 func LoadConfigFromMap(instanceName string, configMap map[string]string) (*Config, error) {
 	config := &Config{
-		ConfigDir:     getMapWithDefault(configMap, "CONFIG_DIR", DefaultConfigDir),
-		ConfigFile:    getMapWithDefault(configMap, "CONFIG_FILE", DefaultConfigFile),
-		ReloadCommand: getMapWithDefault(configMap, "RELOAD_COMMAND", DefaultReloadCommand),
-		Zone:          configMap["ZONE"],
-		TTL:           DefaultTTL,
-		SSHHost:       configMap["SSH_HOST"],
-		SSHUser:       configMap["SSH_USER"],
-		SSHKeyFile:    configMap["SSH_KEY_FILE"],
-		SSHPassword:   configMap["SSH_PASSWORD"],
+		ConfigDir:         getMapWithDefault(configMap, "CONFIG_DIR", DefaultConfigDir),
+		ConfigFile:        getMapWithDefault(configMap, "CONFIG_FILE", DefaultConfigFile),
+		ReloadCommand:     getMapWithDefault(configMap, "RELOAD_COMMAND", DefaultReloadCommand),
+		Zone:              configMap["ZONE"],
+		TTL:               DefaultTTL,
+		SSHHost:           configMap["SSH_HOST"],
+		SSHUser:           configMap["SSH_USER"],
+		SSHKeyFile:        configMap["SSH_KEY_FILE"],
+		SSHPassword:       configMap["SSH_PASSWORD"],
+		SSHKnownHostsFile: configMap["SSH_KNOWN_HOSTS_FILE"],
+		SSHStrictHostKey:  parseBoolValueDefault(configMap["SSH_STRICT_HOST_KEY_CHECKING"], DefaultSSHStrictHostKey),
 	}
 
 	// Parse optional TTL
@@ -235,4 +258,24 @@ func getEnvOrFile(directKey, fileKey string) string {
 	}
 
 	return os.Getenv(directKey)
+}
+
+// parseBoolEnvDefault reads an environment variable and parses it as a boolean,
+// returning def when the variable is unset or empty.
+func parseBoolEnvDefault(key string, def bool) bool {
+	return parseBoolValueDefault(os.Getenv(key), def)
+}
+
+// parseBoolValueDefault parses a string as a boolean, returning def when the
+// value is unset or empty. Recognizes "true"/"false" (case-insensitive); any
+// other non-empty value falls back to def.
+func parseBoolValueDefault(value string, def bool) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "true":
+		return true
+	case "false":
+		return false
+	default:
+		return def
+	}
 }
