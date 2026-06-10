@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-06-10
+
+### Added
+- **SSH remote management for the dnsmasq provider is now functional**
+  ([GitHub #91](https://github.com/maxfield-allison/dnsweaver/issues/91),
+  GitLab #186). SSH mode was documented and config-validated since v0.7.0 but
+  the transport was never wired into the provider, so every reload ran inside
+  the dnsweaver container instead of on the remote host (producing errors such
+  as `exec: "supervisorctl": executable file not found in $PATH`). The provider
+  now uses the shared `pkg/sshutil` package: SFTP writes the managed config file
+  on the remote host and SSH exec runs `RELOAD_COMMAND` there. No shared volumes
+  or local mounts are required.
+- **SSH host key verification via `known_hosts`** (GitLab #153). Two new
+  per-instance variables for the dnsmasq provider:
+  - `DNSWEAVER_{NAME}_SSH_KNOWN_HOSTS_FILE` — path to an OpenSSH `known_hosts`
+    file used to verify the remote host key. Supports the `_FILE` suffix for
+    Docker secrets.
+  - `DNSWEAVER_{NAME}_SSH_STRICT_HOST_KEY_CHECKING` — `true` (default) or
+    `false`. When enabled, a `known_hosts` file is required and a changed or
+    unknown host key fails the connection fast with a clear error.
+  Host-key verification lives in `pkg/sshutil`, so it is reusable by any future
+  SSH-based provider.
+- `Closer` interface in `pkg/provider`. Providers that hold long-lived
+  connections (such as the dnsmasq SSH transport) are now closed cleanly when
+  the registry shuts down.
+
+### Changed
+- **SSH host key verification is enabled by default** for the dnsmasq provider
+  (`SSH_STRICT_HOST_KEY_CHECKING=true`). Because SSH mode never actually
+  connected before this release, there is no practical behavior change for
+  existing deployments. Operators who want the previous unverified behavior can
+  set `SSH_STRICT_HOST_KEY_CHECKING=false` (insecure; a warning is logged on
+  every connection).
+- SSH-configured dnsmasq instances now **fail fast at startup** if the remote
+  host is unreachable or the host key cannot be verified, instead of silently
+  falling back to local execution.
+
+### Fixed
+- dnsmasq reload commands configured for SSH mode now execute on the remote host
+  via SSH exec rather than inside the dnsweaver container
+  ([GitHub #91](https://github.com/maxfield-allison/dnsweaver/issues/91)).
+
+### Security
+- **Go toolchain updated from 1.25.10 to 1.25.11**, resolving three standard
+  library advisories surfaced by `govulncheck`: `GO-2026-5037` (`crypto/x509`),
+  `GO-2026-5038` (`mime`), and `GO-2026-5039` (`net/textproto`).
+- **`go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp` updated
+  from v1.39.0 to v1.43.0** (transitive via the Docker SDK), resolving
+  `CVE-2026-39882`.
+
 ## [1.5.0] - 2026-05-28
 
 ### Added

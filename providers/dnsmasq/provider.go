@@ -18,6 +18,7 @@ type Provider struct {
 	ttl           int
 	reloadOnWrite bool
 	client        *Client
+	transport     *sshTransport // non-nil when SSH mode is active (owns the connection)
 	logger        *slog.Logger
 }
 
@@ -74,12 +75,27 @@ func New(name string, config *Config, opts ...ProviderOption) (*Provider, error)
 
 	// Create client if not provided via options (testing)
 	if p.client == nil {
+		clientOpts := []ClientOption{WithLogger(p.logger)}
+
+		// When SSH mode is enabled, establish the remote transport now and back
+		// the client with it. Connecting here is intentional fail-fast behavior:
+		// a configured-but-unreachable remote returns an error instead of
+		// silently writing files and running the reload command locally.
+		if config.IsSSHEnabled() {
+			transport, err := newSSHTransport(context.Background(), config, p.logger)
+			if err != nil {
+				return nil, fmt.Errorf("dnsmasq provider %q: SSH mode is configured but the transport could not be established: %w", name, err)
+			}
+			p.transport = transport
+			clientOpts = append(clientOpts, WithFileSystem(transport), WithCommandRunner(transport))
+		}
+
 		p.client = NewClient(
 			config.ConfigDir,
 			config.ConfigFile,
 			config.ReloadCommand,
 			config.Zone,
-			WithLogger(p.logger),
+			clientOpts...,
 		)
 	}
 
@@ -268,6 +284,16 @@ func (p *Provider) Delete(ctx context.Context, record provider.Record) error {
 		slog.String("type", string(record.Type)),
 	)
 
+	return nil
+}
+
+// Close releases resources held by the provider. For SSH-backed instances this
+// tears down the SFTP and SSH sessions. Local (file-based) instances hold no
+// resources and Close is a no-op. Safe to call multiple times.
+func (p *Provider) Close() error {
+	if p.transport != nil {
+		return p.transport.Close()
+	}
 	return nil
 }
 
