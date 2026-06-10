@@ -216,12 +216,13 @@ func TestLoadConfigFromMap(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "SSH config",
+			name: "SSH config with host key verification disabled",
 			configMap: map[string]string{
-				"SSH_HOST":     "192.168.1.100",
-				"SSH_PORT":     "2222",
-				"SSH_USER":     "admin",
-				"SSH_KEY_FILE": "/path/to/key",
+				"SSH_HOST":                     "192.168.1.100",
+				"SSH_PORT":                     "2222",
+				"SSH_USER":                     "admin",
+				"SSH_KEY_FILE":                 "/path/to/key",
+				"SSH_STRICT_HOST_KEY_CHECKING": "false",
 			},
 			wantErr: false,
 			wantConfig: &Config{
@@ -234,6 +235,36 @@ func TestLoadConfigFromMap(t *testing.T) {
 				SSHUser:       "admin",
 				SSHKeyFile:    "/path/to/key",
 			},
+		},
+		{
+			name: "SSH config with known_hosts (strict default)",
+			configMap: map[string]string{
+				"SSH_HOST":             "192.168.1.100",
+				"SSH_USER":             "admin",
+				"SSH_KEY_FILE":         "/path/to/key",
+				"SSH_KNOWN_HOSTS_FILE": "/path/to/known_hosts",
+			},
+			wantErr: false,
+			wantConfig: &Config{
+				ConfigDir:        DefaultConfigDir,
+				ConfigFile:       DefaultConfigFile,
+				ReloadCommand:    DefaultReloadCommand,
+				TTL:              DefaultTTL,
+				SSHHost:          "192.168.1.100",
+				SSHPort:          22,
+				SSHUser:          "admin",
+				SSHKeyFile:       "/path/to/key",
+				SSHStrictHostKey: true,
+			},
+		},
+		{
+			name: "SSH enabled with strict default but no known_hosts fails",
+			configMap: map[string]string{
+				"SSH_HOST":     "192.168.1.100",
+				"SSH_USER":     "admin",
+				"SSH_KEY_FILE": "/path/to/key",
+			},
+			wantErr: true,
 		},
 	}
 
@@ -260,6 +291,15 @@ func TestLoadConfigFromMap(t *testing.T) {
 			}
 			if got.TTL != tt.wantConfig.TTL {
 				t.Errorf("TTL = %v, want %v", got.TTL, tt.wantConfig.TTL)
+			}
+			// SSH host-key fields are only meaningful when SSH is enabled.
+			if got.IsSSHEnabled() {
+				if got.SSHHost != tt.wantConfig.SSHHost {
+					t.Errorf("SSHHost = %v, want %v", got.SSHHost, tt.wantConfig.SSHHost)
+				}
+				if got.SSHStrictHostKey != tt.wantConfig.SSHStrictHostKey {
+					t.Errorf("SSHStrictHostKey = %v, want %v", got.SSHStrictHostKey, tt.wantConfig.SSHStrictHostKey)
+				}
 			}
 		})
 	}

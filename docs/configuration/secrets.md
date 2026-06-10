@@ -92,6 +92,7 @@ Providers that support SSH remote management (e.g., [dnsmasq](../providers/dnsma
 |----------|-------------|-------------|
 | `DNSWEAVER_{NAME}_SSH_KEY_FILE` | `DNSWEAVER_{NAME}_SSH_KEY_FILE_FILE` | Path to SSH private key |
 | `DNSWEAVER_{NAME}_SSH_PASSWORD` | `DNSWEAVER_{NAME}_SSH_PASSWORD_FILE` | SSH password |
+| `DNSWEAVER_{NAME}_SSH_KNOWN_HOSTS_FILE` | `DNSWEAVER_{NAME}_SSH_KNOWN_HOSTS_FILE_FILE` | Path to OpenSSH `known_hosts` file |
 
 ### SSH Key via Docker Secret
 

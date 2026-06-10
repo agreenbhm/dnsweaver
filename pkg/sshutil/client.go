@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 // Sentinel errors for SSH operations.
@@ -276,25 +277,80 @@ func (c *Client) parsePrivateKey(keyData []byte) (ssh.Signer, error) {
 }
 
 // buildHostKeyCallback creates the host key callback based on config.
+//
+// Resolution order:
+//   - A known_hosts file path in HostKeyCallback enables verification against
+//     that file, whether or not StrictHostKeyChecking is set.
+//   - StrictHostKeyChecking with no file (or "ignore") is a configuration
+//     error: strict mode cannot verify without a known_hosts file.
+//   - Otherwise verification is disabled (insecure) with a loud warning.
 func (c *Client) buildHostKeyCallback() (ssh.HostKeyCallback, error) {
-	// If strict host key checking is enabled, require a valid host key callback configuration
-	if c.config.StrictHostKeyChecking {
-		if c.config.HostKeyCallback == "" {
-			// known_hosts file loading deferred to #153
-			return nil, errors.New("strict host key checking enabled but no known_hosts file configured - set HOST_KEY_CALLBACK to a known_hosts file path")
+	path := c.config.HostKeyCallback
+
+	// An explicit known_hosts file path enables verification regardless of the
+	// StrictHostKeyChecking flag. "ignore" is a sentinel handled below.
+	if path != "" && path != "ignore" {
+		cb, err := knownHostsCallback(path, c.logger)
+		if err != nil {
+			return nil, err
 		}
-		if c.config.HostKeyCallback == "ignore" {
-			return nil, errors.New("strict host key checking enabled but HOST_KEY_CALLBACK is set to 'ignore' - these settings conflict")
-		}
-		// known_hosts file loading at c.config.HostKeyCallback path (#153)
-		return nil, errors.New("strict host key checking enabled but known_hosts loading not yet implemented")
+		c.logger.Debug("host key verification enabled via known_hosts",
+			slog.String("host", c.config.Host),
+			slog.String("known_hosts", path),
+		)
+		return cb, nil
 	}
 
-	// Strict checking disabled - use insecure mode
+	// Strict checking requires a known_hosts file; without one we cannot verify.
+	if c.config.StrictHostKeyChecking {
+		if path == "ignore" {
+			return nil, errors.New("strict host key checking enabled but HOST_KEY_CALLBACK is set to 'ignore' - these settings conflict")
+		}
+		return nil, errors.New("strict host key checking enabled but no known_hosts file configured - set HOST_KEY_CALLBACK to a known_hosts file path")
+	}
+
+	// No verification configured - insecure mode with a warning.
 	c.logger.Warn("host key verification disabled - this is insecure",
 		slog.String("host", c.config.Host),
 	)
 	return ssh.InsecureIgnoreHostKey(), nil //nolint:gosec // User explicitly requested skip
+}
+
+// knownHostsCallback builds an ssh.HostKeyCallback that verifies the remote
+// host key against an OpenSSH-format known_hosts file. Errors are wrapped to
+// distinguish an unknown host from a key mismatch (the latter is a strong
+// signal of a man-in-the-middle attack or a legitimately rotated host key).
+func knownHostsCallback(path string, logger *slog.Logger) (ssh.HostKeyCallback, error) {
+	if _, err := os.Stat(path); err != nil {
+		return nil, fmt.Errorf("known_hosts file %q: %w", path, err)
+	}
+
+	base, err := knownhosts.New(path)
+	if err != nil {
+		return nil, fmt.Errorf("loading known_hosts file %q: %w", path, err)
+	}
+
+	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		err := base(hostname, remote, key)
+		if err == nil {
+			return nil
+		}
+
+		var keyErr *knownhosts.KeyError
+		if errors.As(err, &keyErr) {
+			// Want is populated only when the host is present but the key
+			// differs - a mismatch rather than a simple unknown host.
+			if len(keyErr.Want) > 0 {
+				logger.Error("host key mismatch - refusing connection",
+					slog.String("host", hostname),
+					slog.String("known_hosts", path),
+				)
+				return fmt.Errorf("host key verification failed for %s: presented key does not match known_hosts %q (possible MITM or rotated host key): %w", hostname, path, err)
+			}
+			return fmt.Errorf("host key verification failed for %s: host is not present in known_hosts %q: %w", hostname, path, err)
+		}
+		return fmt.Errorf("host key verification failed for %s: %w", hostname, err)
+	}, nil
 }
 
 // keepalive sends periodic keepalive messages to maintain the connection.

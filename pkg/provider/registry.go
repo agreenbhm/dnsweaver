@@ -309,8 +309,20 @@ func (r *Registry) Close() error {
 
 	var firstErr error
 	for _, inst := range r.instances {
-		// Providers may implement a Close method in the future
-		// For now, just clear the registry
+		// Providers holding long-lived resources (e.g. SSH/SFTP sessions)
+		// implement Closer; release them on shutdown.
+		if closer, ok := inst.Provider.(Closer); ok {
+			if err := closer.Close(); err != nil {
+				r.logger.Warn("error closing provider instance",
+					slog.String("name", inst.Name()),
+					slog.String("error", err.Error()),
+				)
+				if firstErr == nil {
+					firstErr = err
+				}
+				continue
+			}
+		}
 		r.logger.Debug("closing provider instance", slog.String("name", inst.Name()))
 	}
 
