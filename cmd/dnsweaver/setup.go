@@ -17,6 +17,7 @@ import (
 	"gitlab.bluewillows.net/root/dnsweaver/providers/adguard"
 	"gitlab.bluewillows.net/root/dnsweaver/providers/cloudflare"
 	"gitlab.bluewillows.net/root/dnsweaver/providers/dnsmasq"
+	"gitlab.bluewillows.net/root/dnsweaver/providers/ovh"
 	"gitlab.bluewillows.net/root/dnsweaver/providers/pihole"
 	"gitlab.bluewillows.net/root/dnsweaver/providers/rfc2136"
 	"gitlab.bluewillows.net/root/dnsweaver/providers/technitium"
@@ -256,6 +257,9 @@ func registerProviderFactories(registry *provider.Registry) {
 
 	// Register AdGuard Home provider factory (local DNS via AdGuard Home API)
 	registry.RegisterFactory("adguard", adguard.Factory())
+
+	// Register OVHcloud provider factory (public DNS)
+	registry.RegisterFactory("ovh", ovh.Factory())
 }
 
 // initializeProviders initializes all configured providers using the manager.
