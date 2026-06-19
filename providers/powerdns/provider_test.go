@@ -139,3 +139,33 @@ func TestProvider_List(t *testing.T) {
 		t.Errorf("SRV record not parsed correctly: %+v", srvRec)
 	}
 }
+
+func TestProvider_List_SkipsUndecodableRecord(t *testing.T) {
+	zone := zoneResponse{
+		Name: "example.com.",
+		RRsets: []rrset{
+			{Name: "bad.example.com.", Type: "SRV", TTL: 300, Records: []apiRecord{
+				{Content: "this is not valid srv"},
+			}},
+			{Name: "good.example.com.", Type: "A", TTL: 300, Records: []apiRecord{
+				{Content: "192.0.2.1"},
+			}},
+		},
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(zone)
+	}))
+	defer srv.Close()
+
+	records, err := newTestProvider(t, srv.URL).List(context.Background())
+	if err != nil {
+		t.Fatalf("List error: %v", err)
+	}
+	// Should skip the malformed SRV, include only the valid A record
+	if len(records) != 1 {
+		t.Fatalf("got %d records, want 1: %+v", len(records), records)
+	}
+	if records[0].Hostname != "good.example.com" || records[0].Target != "192.0.2.1" {
+		t.Errorf("expected valid A record (good.example.com/192.0.2.1), got %+v", records[0])
+	}
+}
