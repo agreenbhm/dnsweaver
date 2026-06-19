@@ -1,6 +1,9 @@
 package powerdns
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestConfig_Validate(t *testing.T) {
 	tests := []struct {
@@ -77,6 +80,47 @@ func TestLoadConfigFromMap_InvalidTTL(t *testing.T) {
 func TestLoadConfigFromMap_MissingRequired(t *testing.T) {
 	_, err := LoadConfigFromMap("my-pdns", map[string]string{"URL": "http://ns1:8081"})
 	if err == nil {
+		t.Error("expected error for missing API_KEY/ZONE, got nil")
+	}
+}
+
+func TestLoadConfig_FromEnv(t *testing.T) {
+	t.Setenv("DNSWEAVER_MY_PDNS_URL", "http://ns1:8081/")
+	t.Setenv("DNSWEAVER_MY_PDNS_API_KEY", "secret")
+	t.Setenv("DNSWEAVER_MY_PDNS_ZONE", "example.com")
+	cfg, err := LoadConfig("my-pdns")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.URL != "http://ns1:8081" || cfg.APIKey != "secret" || cfg.Zone != "example.com" {
+		t.Errorf("unexpected config: %+v", cfg)
+	}
+	if cfg.ServerID != DefaultServerID || cfg.TTL != DefaultTTL {
+		t.Errorf("defaults not applied: %+v", cfg)
+	}
+}
+
+func TestLoadConfig_APIKeyFromFile(t *testing.T) {
+	dir := t.TempDir()
+	keyFile := dir + "/key"
+	if err := os.WriteFile(keyFile, []byte("  filesecret\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("DNSWEAVER_MY_PDNS_URL", "http://ns1:8081")
+	t.Setenv("DNSWEAVER_MY_PDNS_ZONE", "example.com")
+	t.Setenv("DNSWEAVER_MY_PDNS_API_KEY_FILE", keyFile)
+	cfg, err := LoadConfig("my-pdns")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.APIKey != "filesecret" {
+		t.Errorf("API key from file = %q, want trimmed 'filesecret'", cfg.APIKey)
+	}
+}
+
+func TestLoadConfig_MissingRequired(t *testing.T) {
+	t.Setenv("DNSWEAVER_MY_PDNS_URL", "http://ns1:8081")
+	if _, err := LoadConfig("my-pdns"); err == nil {
 		t.Error("expected error for missing API_KEY/ZONE, got nil")
 	}
 }

@@ -4,6 +4,7 @@ package powerdns
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -72,4 +73,54 @@ func LoadConfigFromMap(instanceName string, config map[string]string) (*Config, 
 		return nil, fmt.Errorf("configuration for %s: %w", instanceName, err)
 	}
 	return cfg, nil
+}
+
+// LoadConfig loads PowerDNS configuration from environment variables.
+// Pattern: DNSWEAVER_{INSTANCE_NAME}_{SETTING}. API_KEY supports the _FILE
+// suffix (Docker/Kubernetes secrets).
+func LoadConfig(instanceName string) (*Config, error) {
+	prefix := envPrefix(instanceName)
+	cfg := &Config{
+		URL:      strings.TrimRight(getEnv(prefix+"URL"), "/"),
+		APIKey:   getEnvOrFile(prefix+"API_KEY", prefix+"API_KEY_FILE"),
+		Zone:     getEnv(prefix + "ZONE"),
+		ServerID: getEnv(prefix + "SERVER_ID"),
+		TTL:      DefaultTTL,
+	}
+	if cfg.ServerID == "" {
+		cfg.ServerID = DefaultServerID
+	}
+	if ttlStr := getEnv(prefix + "TTL"); ttlStr != "" {
+		ttl, err := strconv.Atoi(ttlStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid TTL value %q: %w", ttlStr, err)
+		}
+		cfg.TTL = ttl
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("configuration for %s: %w", instanceName, err)
+	}
+	return cfg, nil
+}
+
+// envPrefix converts an instance name to its env var prefix.
+// Example: "my-pdns" -> "DNSWEAVER_MY_PDNS_".
+func envPrefix(instanceName string) string {
+	normalized := strings.ToUpper(instanceName)
+	normalized = strings.ReplaceAll(normalized, "-", "_")
+	return "DNSWEAVER_" + normalized + "_"
+}
+
+func getEnv(key string) string { return os.Getenv(key) }
+
+// getEnvOrFile reads directKey, or the contents of the file named by fileKey
+// (Docker secrets pattern). The file takes precedence; its contents are
+// whitespace-trimmed.
+func getEnvOrFile(directKey, fileKey string) string {
+	if filePath := os.Getenv(fileKey); filePath != "" {
+		if content, err := os.ReadFile(filePath); err == nil {
+			return strings.TrimSpace(string(content))
+		}
+	}
+	return os.Getenv(directKey)
 }
