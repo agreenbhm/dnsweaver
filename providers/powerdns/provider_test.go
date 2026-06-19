@@ -500,3 +500,90 @@ func TestProvider_Update_TTLOnly(t *testing.T) {
 		t.Errorf("content = %q, want 192.0.2.1", rs.Records[0].Content)
 	}
 }
+
+func TestProvider_Create_ReenablesDisabledRecord(t *testing.T) {
+	m := &mockPDNS{zone: zoneResponse{Name: "example.test.", RRsets: []rrset{
+		{Name: "app.example.test.", Type: "A", TTL: 300, Records: []apiRecord{{Content: "192.0.2.1", Disabled: true}}},
+	}}}
+	srv := m.server(t)
+	defer srv.Close()
+	if err := newTestProvider(t, srv.URL).Create(context.Background(), provider.Record{
+		Hostname: "app.example.test", Type: provider.RecordTypeA, Target: "192.0.2.1",
+	}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	rs := m.lastRRset(t) // must have issued a PATCH (not a no-op)
+	if rs.ChangeType != "REPLACE" || len(rs.Records) != 1 || rs.Records[0].Disabled {
+		t.Errorf("expected REPLACE re-enabling the record, got %+v", rs)
+	}
+}
+
+func TestProvider_Create_NoopOnEnabledMatch(t *testing.T) {
+	m := &mockPDNS{zone: zoneResponse{Name: "example.test.", RRsets: []rrset{
+		{Name: "app.example.test.", Type: "A", TTL: 300, Records: []apiRecord{{Content: "192.0.2.1"}}},
+	}}}
+	srv := m.server(t)
+	defer srv.Close()
+	if err := newTestProvider(t, srv.URL).Create(context.Background(), provider.Record{
+		Hostname: "app.example.test", Type: provider.RecordTypeA, Target: "192.0.2.1",
+	}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if len(m.patches) != 0 {
+		t.Errorf("enabled match should be a no-op, got %d patches", len(m.patches))
+	}
+}
+
+func TestProvider_Update_PreservesDisabledSibling(t *testing.T) {
+	m := &mockPDNS{zone: zoneResponse{Name: "example.test.", RRsets: []rrset{
+		{Name: "app.example.test.", Type: "A", TTL: 300, Records: []apiRecord{
+			{Content: "192.0.2.1"},                 // the one we update
+			{Content: "192.0.2.9", Disabled: true}, // manually-disabled sibling
+		}},
+	}}}
+	srv := m.server(t)
+	defer srv.Close()
+	err := newTestProvider(t, srv.URL).Update(context.Background(),
+		provider.Record{Hostname: "app.example.test", Type: provider.RecordTypeA, Target: "192.0.2.1"},
+		provider.Record{Hostname: "app.example.test", Type: provider.RecordTypeA, Target: "192.0.2.2"},
+	)
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	rs := m.lastRRset(t)
+	var sawDisabledSibling, sawUpdatedActive bool
+	for _, r := range rs.Records {
+		if r.Content == "192.0.2.9" && r.Disabled {
+			sawDisabledSibling = true
+		}
+		if r.Content == "192.0.2.2" && !r.Disabled {
+			sawUpdatedActive = true
+		}
+	}
+	if !sawDisabledSibling {
+		t.Errorf("disabled sibling 192.0.2.9 must stay disabled, got %+v", rs.Records)
+	}
+	if !sawUpdatedActive {
+		t.Errorf("updated record 192.0.2.2 must be active, got %+v", rs.Records)
+	}
+}
+
+func TestProvider_Delete_PreservesSiblingTTL(t *testing.T) {
+	m := &mockPDNS{zone: zoneResponse{Name: "example.test.", RRsets: []rrset{
+		{Name: "app.example.test.", Type: "A", TTL: 600, Records: []apiRecord{
+			{Content: "192.0.2.1"}, {Content: "192.0.2.2"},
+		}},
+	}}}
+	srv := m.server(t)
+	defer srv.Close()
+	// Delete with zero TTL — must NOT rewrite survivors to the provider default (300).
+	if err := newTestProvider(t, srv.URL).Delete(context.Background(), provider.Record{
+		Hostname: "app.example.test", Type: provider.RecordTypeA, Target: "192.0.2.1",
+	}); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	rs := m.lastRRset(t)
+	if rs.ChangeType != "REPLACE" || rs.TTL != 600 {
+		t.Errorf("survivors' TTL must be preserved at 600, got changetype=%q ttl=%d", rs.ChangeType, rs.TTL)
+	}
+}

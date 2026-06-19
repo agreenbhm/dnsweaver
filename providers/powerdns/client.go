@@ -30,7 +30,7 @@ type rrset struct {
 	Type       string      `json:"type"`
 	TTL        int         `json:"ttl,omitempty"`
 	ChangeType string      `json:"changetype,omitempty"`
-	Records    []apiRecord `json:"records"`
+	Records    []apiRecord `json:"records,omitempty"`
 }
 
 // zoneResponse is the subset of the PowerDNS zone object dnsweaver consumes.

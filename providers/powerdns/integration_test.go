@@ -195,6 +195,42 @@ func TestIntegration_Lifecycle(t *testing.T) {
 	})
 }
 
+func TestIntegration_Delete_PreservesSiblingTTL(t *testing.T) {
+	ctx := context.Background()
+	p, zone := itProvider(t)
+
+	host := "it-ttl-del." + zone
+
+	cleanup := func() {
+		_ = p.Delete(ctx, provider.Record{Hostname: host, Type: provider.RecordTypeA, Target: "192.0.2.70", TTL: 600})
+		_ = p.Delete(ctx, provider.Record{Hostname: host, Type: provider.RecordTypeA, Target: "192.0.2.71", TTL: 600})
+	}
+	cleanup()
+	t.Cleanup(cleanup)
+
+	// Create both records with TTL=600 so the rrset TTL is 600.
+	if err := p.Create(ctx, provider.Record{Hostname: host, Type: provider.RecordTypeA, Target: "192.0.2.70", TTL: 600}); err != nil {
+		t.Fatalf("Create 192.0.2.70: %v", err)
+	}
+	if err := p.Create(ctx, provider.Record{Hostname: host, Type: provider.RecordTypeA, Target: "192.0.2.71", TTL: 600}); err != nil {
+		t.Fatalf("Create 192.0.2.71: %v", err)
+	}
+
+	// Delete one record with zero TTL — survivor's rrset TTL must stay 600.
+	if err := p.Delete(ctx, provider.Record{Hostname: host, Type: provider.RecordTypeA, Target: "192.0.2.70"}); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+
+	// List reads TTL from the rrset; survivor must report TTL=600.
+	rec := find(t, p, host, provider.RecordTypeA, "192.0.2.71")
+	if rec == nil {
+		t.Fatal("surviving record 192.0.2.71 not found after partial delete")
+	}
+	if rec.TTL != 600 {
+		t.Errorf("survivor TTL = %d, want 600 (must be preserved from rrset)", rec.TTL)
+	}
+}
+
 func TestIntegration_PingMissingZone(t *testing.T) {
 	url, key := os.Getenv("PDNS_URL"), os.Getenv("PDNS_KEY")
 	if url == "" || key == "" {

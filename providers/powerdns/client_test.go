@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -269,4 +270,27 @@ func TestClient_Ping(t *testing.T) {
 			t.Errorf("expected ErrUnauthorized, got %v", err)
 		}
 	})
+}
+
+func TestClient_PatchRRsets_DeleteOmitsRecords(t *testing.T) {
+	var body []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+	c := NewClient(srv.URL, "k", "localhost")
+	err := c.PatchRRsets(context.Background(), "example.test", []rrset{
+		{Name: "x.example.test.", Type: "A", ChangeType: "DELETE"},
+	})
+	if err != nil {
+		t.Fatalf("PatchRRsets: %v", err)
+	}
+	s := string(body)
+	if !strings.Contains(s, `"changetype":"DELETE"`) {
+		t.Errorf("body missing DELETE changetype: %s", s)
+	}
+	if strings.Contains(s, `"records"`) {
+		t.Errorf("DELETE body must omit records, got: %s", s)
+	}
 }

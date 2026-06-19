@@ -181,17 +181,16 @@ func (p *Provider) List(ctx context.Context) ([]provider.Record, error) {
 	return records, nil
 }
 
-// currentRecords returns the existing PowerDNS records for hostname+type, or
-// nil if no such rrset exists in the zone.
-func (p *Provider) currentRecords(ctx context.Context, hostname string, rt provider.RecordType) ([]apiRecord, error) {
+// currentRRset returns the existing rrset for hostname+type, or nil if absent.
+func (p *Provider) currentRRset(ctx context.Context, hostname string, rt provider.RecordType) (*rrset, error) {
 	zone, err := p.client.GetZone(ctx, p.zone)
 	if err != nil {
 		return nil, err
 	}
 	name := canonicalize(hostname)
-	for _, rs := range zone.RRsets {
-		if rs.Name == name && rs.Type == string(rt) {
-			return rs.Records, nil
+	for i := range zone.RRsets {
+		if zone.RRsets[i].Name == name && zone.RRsets[i].Type == string(rt) {
+			return &zone.RRsets[i], nil
 		}
 	}
 	return nil, nil
@@ -199,6 +198,7 @@ func (p *Provider) currentRecords(ctx context.Context, hostname string, rt provi
 
 // Create adds a DNS record using read-modify-write: it merges the new content
 // into the existing rrset (preserving siblings) and REPLACEs the rrset.
+// If the content already exists and is disabled, it re-enables it.
 func (p *Provider) Create(ctx context.Context, record provider.Record) error {
 	content, err := recordContent(record)
 	if err != nil {
@@ -209,28 +209,45 @@ func (p *Provider) Create(ctx context.Context, record provider.Record) error {
 		ttl = p.ttl
 	}
 
-	existing, err := p.currentRecords(ctx, record.Hostname, record.Type)
+	rs, err := p.currentRRset(ctx, record.Hostname, record.Type)
 	if err != nil {
 		return fmt.Errorf("reading existing rrset: %w", err)
 	}
-	for _, ar := range existing {
-		if ar.Content == content {
-			return nil // already present — idempotent no-op
-		}
+	var existing []apiRecord
+	if rs != nil {
+		existing = rs.Records
 	}
 
-	merged := make([]apiRecord, 0, len(existing)+1)
-	merged = append(merged, existing...)
-	merged = append(merged, apiRecord{Content: content, Disabled: false})
+	// Locate a content match. If it exists AND is enabled, nothing to do.
+	matchIdx := -1
+	for i, ar := range existing {
+		if ar.Content == content {
+			matchIdx = i
+			break
+		}
+	}
+	if matchIdx >= 0 && !existing[matchIdx].Disabled {
+		return nil // already present and active — idempotent no-op
+	}
 
-	rs := rrset{
+	// Build the replacement set: copy siblings verbatim (preserving each one's
+	// Disabled flag), then either re-enable the matched record or append ours.
+	merged := make([]apiRecord, len(existing))
+	copy(merged, existing)
+	if matchIdx >= 0 {
+		merged[matchIdx].Disabled = false // re-enable a disabled managed record
+	} else {
+		merged = append(merged, apiRecord{Content: content})
+	}
+
+	out := rrset{
 		Name:       canonicalize(record.Hostname),
 		Type:       string(record.Type),
 		TTL:        ttl,
 		ChangeType: "REPLACE",
 		Records:    merged,
 	}
-	if err := p.client.PatchRRsets(ctx, p.zone, []rrset{rs}); err != nil {
+	if err := p.client.PatchRRsets(ctx, p.zone, []rrset{out}); err != nil {
 		return fmt.Errorf("creating %s record: %w", record.Type, err)
 	}
 	p.logger.Info("created record",
@@ -245,54 +262,51 @@ func (p *Provider) Create(ctx context.Context, record provider.Record) error {
 
 // Delete removes a DNS record using read-modify-write: it drops the matching
 // content and REPLACEs the rrset with the remainder, or DELETEs the rrset when
-// no records remain. Absent records are a no-op.
+// no records remain. Absent records are a no-op. Survivors' TTL and Disabled
+// state are preserved verbatim from the existing rrset.
 func (p *Provider) Delete(ctx context.Context, record provider.Record) error {
 	content, err := recordContent(record)
 	if err != nil {
 		return fmt.Errorf("encoding %s record: %w", record.Type, err)
 	}
-	existing, err := p.currentRecords(ctx, record.Hostname, record.Type)
+	rs, err := p.currentRRset(ctx, record.Hostname, record.Type)
 	if err != nil {
 		return fmt.Errorf("reading existing rrset: %w", err)
 	}
-	if len(existing) == 0 {
+	if rs == nil || len(rs.Records) == 0 {
 		return nil // rrset absent — nothing to delete
 	}
 
-	remaining := make([]apiRecord, 0, len(existing))
+	remaining := make([]apiRecord, 0, len(rs.Records))
 	found := false
-	for _, ar := range existing {
+	for _, ar := range rs.Records {
 		if ar.Content == content {
 			found = true
 			continue
 		}
-		remaining = append(remaining, ar)
+		remaining = append(remaining, ar) // preserve sibling verbatim (incl. Disabled)
 	}
 	if !found {
 		return nil // content not present — no-op
 	}
 
-	var rs rrset
+	var out rrset
 	if len(remaining) == 0 {
-		rs = rrset{
+		out = rrset{
 			Name:       canonicalize(record.Hostname),
 			Type:       string(record.Type),
 			ChangeType: "DELETE",
 		}
 	} else {
-		ttl := record.TTL
-		if ttl <= 0 {
-			ttl = p.ttl
-		}
-		rs = rrset{
+		out = rrset{
 			Name:       canonicalize(record.Hostname),
 			Type:       string(record.Type),
-			TTL:        ttl,
+			TTL:        rs.TTL, // preserve the existing rrset TTL — survivors are untouched
 			ChangeType: "REPLACE",
 			Records:    remaining,
 		}
 	}
-	if err := p.client.PatchRRsets(ctx, p.zone, []rrset{rs}); err != nil {
+	if err := p.client.PatchRRsets(ctx, p.zone, []rrset{out}); err != nil {
 		return fmt.Errorf("deleting %s record: %w", record.Type, err)
 	}
 	p.logger.Info("deleted record",
@@ -307,6 +321,7 @@ func (p *Provider) Delete(ctx context.Context, record provider.Record) error {
 // Update modifies a record in place by swapping existing content for desired
 // content within the rrset (preserving siblings) and REPLACEing it. Implements
 // provider.Updater. Returns provider.ErrNotFound if the rrset does not exist.
+// Siblings' Disabled state is preserved; only the written record is enabled.
 func (p *Provider) Update(ctx context.Context, existing, desired provider.Record) error {
 	desiredContent, err := recordContent(desired)
 	if err != nil {
@@ -321,42 +336,42 @@ func (p *Provider) Update(ctx context.Context, existing, desired provider.Record
 		ttl = p.ttl
 	}
 
-	current, err := p.currentRecords(ctx, desired.Hostname, desired.Type)
+	rs, err := p.currentRRset(ctx, desired.Hostname, desired.Type)
 	if err != nil {
 		return fmt.Errorf("reading existing rrset: %w", err)
 	}
-	if len(current) == 0 {
+	if rs == nil || len(rs.Records) == 0 {
 		return provider.ErrNotFound
 	}
 
-	out := make([]apiRecord, 0, len(current)+1)
-	seen := make(map[string]bool, len(current)+1)
+	out := make([]apiRecord, 0, len(rs.Records)+1)
+	seen := make(map[string]bool, len(rs.Records)+1)
 	replaced := false
-	for _, ar := range current {
-		c := ar.Content
-		if c == existingContent {
-			c = desiredContent
+	for _, ar := range rs.Records {
+		rec := ar // preserve content + Disabled for untouched siblings
+		if ar.Content == existingContent {
+			rec.Content = desiredContent
+			rec.Disabled = false // the record we are writing is active
 			replaced = true
 		}
-		if seen[c] {
+		if seen[rec.Content] {
 			continue
 		}
-		seen[c] = true
-		out = append(out, apiRecord{Content: c, Disabled: false})
+		seen[rec.Content] = true
+		out = append(out, rec)
 	}
 	if !replaced && !seen[desiredContent] {
-		// existing content not found; ensure the desired value is present.
-		out = append(out, apiRecord{Content: desiredContent, Disabled: false})
+		out = append(out, apiRecord{Content: desiredContent})
 	}
 
-	rs := rrset{
+	patch := rrset{
 		Name:       canonicalize(desired.Hostname),
 		Type:       string(desired.Type),
 		TTL:        ttl,
 		ChangeType: "REPLACE",
 		Records:    out,
 	}
-	if err := p.client.PatchRRsets(ctx, p.zone, []rrset{rs}); err != nil {
+	if err := p.client.PatchRRsets(ctx, p.zone, []rrset{patch}); err != nil {
 		return fmt.Errorf("updating %s record: %w", desired.Type, err)
 	}
 	p.logger.Info("updated record",
