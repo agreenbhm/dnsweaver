@@ -230,7 +230,7 @@ func NewClient(baseURL, apiKey, serverID string, opts ...ClientOption) *Client {
 // zonePath builds the API path for the configured zone.
 func (c *Client) zonePath(zone string) string {
 	return fmt.Sprintf("/api/%s/servers/%s/zones/%s",
-		apiVersion, c.serverID, url.PathEscape(canonicalize(zone)))
+		apiVersion, url.PathEscape(c.serverID), url.PathEscape(canonicalize(zone)))
 }
 
 // doRequest performs an HTTP request and returns the 2xx body. Non-2xx and
@@ -245,6 +245,11 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body io.Rea
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+
+	c.logger.Debug("powerdns API request",
+		slog.String("method", method),
+		slog.String("path", path),
+	)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

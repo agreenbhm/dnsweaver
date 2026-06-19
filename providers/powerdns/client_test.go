@@ -225,6 +225,12 @@ func TestClient_PatchRRsets_SendsBody(t *testing.T) {
 		if r.Method != http.MethodPatch {
 			t.Errorf("method = %s, want PATCH", r.Method)
 		}
+		if r.Header.Get("X-API-Key") != "k" {
+			t.Errorf("X-API-Key = %q, want k", r.Header.Get("X-API-Key"))
+		}
+		if ct := r.Header.Get("Content-Type"); ct != "application/json" {
+			t.Errorf("Content-Type = %q, want application/json", ct)
+		}
 		json.NewDecoder(r.Body).Decode(&got)
 		w.WriteHeader(http.StatusNoContent)
 	}))
