@@ -69,7 +69,7 @@ package config_test
 import (
     "testing"
 
-    "gitlab.bluewillows.net/root/dnsweaver/internal/config"
+    "github.com/maxfield-allison/dnsweaver/internal/config"
 )
 
 func TestLoad_MinimalConfig(t *testing.T) {

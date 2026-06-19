@@ -3,7 +3,7 @@ package docker
 import (
 	"context"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
+	"github.com/maxfield-allison/dnsweaver/pkg/workload"
 )
 
 // toWorkloadKind maps a Docker WorkloadType to the platform-agnostic workload.Kind.

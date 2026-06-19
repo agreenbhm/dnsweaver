@@ -9,8 +9,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/httputil"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/httputil"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 // rewriteEntry represents an AdGuard Home DNS rewrite rule.

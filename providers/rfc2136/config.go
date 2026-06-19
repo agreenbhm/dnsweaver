@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/dnsupdate"
+	"github.com/maxfield-allison/dnsweaver/pkg/dnsupdate"
 )
 
 // Default configuration values.

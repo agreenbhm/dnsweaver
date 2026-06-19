@@ -552,7 +552,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (K8s) now opt out of ALL sources at the registry level, not just the dnsweaver native
   source. Previously the traefik source still extracted hostnames from disabled workloads.
   Fixes [#75](https://github.com/maxfield-allison/dnsweaver/issues/75),
-  [#152](https://gitlab.bluewillows.net/root/dnsweaver/-/issues/152).
+  [#152](https://github.com/maxfield-allison/dnsweaver/-/issues/152).
 - **Helm Chart**: Bumped appVersion to 0.9.3
 
 ## [0.9.2] - 2026-03-11
@@ -871,7 +871,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Package Structure Refactor** (#61): Moved source implementations to root-level `sources/` directory
   - `pkg/source/traefik/` → `sources/traefik/` for consistency with `providers/` structure
-  - Import path changed: `gitlab.bluewillows.net/root/dnsweaver/sources/traefik`
+  - Import path changed: `github.com/maxfield-allison/dnsweaver/sources/traefik`
   - Internal interfaces remain in `pkg/source/` (no breaking changes for external consumers)
 
 ### Fixed
@@ -1009,7 +1009,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Multi-arch Images**: linux/amd64 and linux/arm64 Docker images
 
 ### Infrastructure
-- Go module: `gitlab.bluewillows.net/root/dnsweaver`
+- Go module: `github.com/maxfield-allison/dnsweaver`
 - Minimum Go version: 1.23
 - GitLab CI/CD pipeline with GitHub release automation
 - Docker Hub and GitHub Container Registry publishing

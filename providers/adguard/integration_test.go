@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 // TestIntegration_FullCRUD runs a full create/read/update/delete cycle against a live AdGuard Home instance.

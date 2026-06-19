@@ -69,8 +69,8 @@ import (
     "context"
     "testing"
 
-    "gitlab.bluewillows.net/root/dnsweaver/internal/reconciler"
-    "gitlab.bluewillows.net/root/dnsweaver/internal/testutil"
+    "github.com/maxfield-allison/dnsweaver/internal/reconciler"
+    "github.com/maxfield-allison/dnsweaver/internal/testutil"
 )
 
 func TestReconcile_BasicCreateFlow(t *testing.T) {

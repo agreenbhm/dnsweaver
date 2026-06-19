@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"gitlab.bluewillows.net/root/dnsweaver/internal/metrics"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
+	"github.com/maxfield-allison/dnsweaver/internal/metrics"
+	"github.com/maxfield-allison/dnsweaver/pkg/workload"
 )
 
 // Registry manages source implementations and coordinates hostname extraction.

@@ -12,7 +12,7 @@ import (
 	"context"
 	"sync"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 // MockProvider implements provider.Provider for testing.

@@ -12,7 +12,7 @@ import (
 
 	"github.com/miekg/dns"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/dnsupdate"
+	"github.com/maxfield-allison/dnsweaver/pkg/dnsupdate"
 )
 
 // Integration test configuration loaded from environment variables.

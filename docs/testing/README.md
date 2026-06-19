@@ -35,7 +35,7 @@ The `internal/testutil` package provides reusable test infrastructure:
 ### Record Builders
 
 ```go
-import "gitlab.bluewillows.net/root/dnsweaver/internal/testutil"
+import "github.com/maxfield-allison/dnsweaver/internal/testutil"
 
 rec := testutil.ARecord("app.example.com", "192.0.2.1")
 txt := testutil.TXTRecord("app.example.com", "heritage=dnsweaver")

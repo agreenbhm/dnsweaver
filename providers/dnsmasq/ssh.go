@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/sshutil"
+	"github.com/maxfield-allison/dnsweaver/pkg/sshutil"
 )
 
 // sshTransport manages a remote dnsmasq backend over SSH. It implements both

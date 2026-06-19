@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 // clearInstanceEnv removes all environment variables for a given instance.

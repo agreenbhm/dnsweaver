@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"gitlab.bluewillows.net/root/dnsweaver/internal/testutil"
+	"github.com/maxfield-allison/dnsweaver/internal/testutil"
 )
 
 // httpGet is a test helper that performs an HTTP GET with context.

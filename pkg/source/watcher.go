@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.bluewillows.net/root/dnsweaver/internal/metrics"
+	"github.com/maxfield-allison/dnsweaver/internal/metrics"
 )
 
 // DiscoveryCallback is called when file discovery finds hostnames.

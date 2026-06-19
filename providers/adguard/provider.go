@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 // Provider implements provider.Provider and provider.Updater for AdGuard Home DNS.

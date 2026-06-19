@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.bluewillows.net/root/dnsweaver/internal/matcher"
-	"gitlab.bluewillows.net/root/dnsweaver/internal/metrics"
+	"github.com/maxfield-allison/dnsweaver/internal/matcher"
+	"github.com/maxfield-allison/dnsweaver/internal/metrics"
 )
 
 // Metrics status values.

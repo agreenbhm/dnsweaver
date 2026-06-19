@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.bluewillows.net/root/dnsweaver/internal/metrics"
+	"github.com/maxfield-allison/dnsweaver/internal/metrics"
 )
 
 // ManagerConfig holds configuration for the provider manager.
