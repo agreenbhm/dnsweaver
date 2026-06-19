@@ -134,3 +134,49 @@ func (p *Provider) Ping(ctx context.Context) error {
 	}
 	return nil
 }
+
+// List returns all managed records of supported types in the configured zone.
+func (p *Provider) List(ctx context.Context) ([]provider.Record, error) {
+	zone, err := p.client.GetZone(ctx, p.zone)
+	if err != nil {
+		return nil, fmt.Errorf("listing records: %w", err)
+	}
+	caps := p.Capabilities()
+	var records []provider.Record
+	for _, rs := range zone.RRsets {
+		rt := provider.RecordType(rs.Type)
+		if !caps.SupportsRecordType(rt) {
+			continue
+		}
+		hostname := stripDot(rs.Name)
+		for _, ar := range rs.Records {
+			if ar.Disabled {
+				continue
+			}
+			target, srv, derr := decodeContent(rt, ar.Content)
+			if derr != nil {
+				p.logger.Warn("skipping undecodable record",
+					slog.String("provider", p.name),
+					slog.String("name", rs.Name),
+					slog.String("type", rs.Type),
+					slog.String("error", derr.Error()),
+				)
+				continue
+			}
+			records = append(records, provider.Record{
+				Hostname:   hostname,
+				Type:       rt,
+				Target:     target,
+				TTL:        rs.TTL,
+				SRV:        srv,
+				ProviderID: hostname + "|" + rs.Type,
+			})
+		}
+	}
+	p.logger.Debug("listed records",
+		slog.String("provider", p.name),
+		slog.String("zone", p.zone),
+		slog.Int("count", len(records)),
+	)
+	return records, nil
+}

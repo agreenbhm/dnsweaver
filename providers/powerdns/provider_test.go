@@ -96,3 +96,46 @@ func TestProvider_Ping(t *testing.T) {
 		}
 	})
 }
+
+func TestProvider_List(t *testing.T) {
+	zone := zoneResponse{
+		Name: "example.com.",
+		RRsets: []rrset{
+			{Name: "app.example.com.", Type: "A", TTL: 300, Records: []apiRecord{
+				{Content: "192.0.2.1"}, {Content: "192.0.2.2"},
+			}},
+			{Name: "cname.example.com.", Type: "CNAME", TTL: 300, Records: []apiRecord{{Content: "app.example.com."}}},
+			{Name: "_dnsweaver.app.example.com.", Type: "TXT", TTL: 300, Records: []apiRecord{{Content: `"heritage=dnsweaver"`}}},
+			{Name: "sip.example.com.", Type: "SRV", TTL: 300, Records: []apiRecord{{Content: "10 20 5060 host.example.com."}}},
+			{Name: "example.com.", Type: "SOA", TTL: 3600, Records: []apiRecord{{Content: "ns1. hostmaster. 1 1 1 1 1"}}},
+			{Name: "disabled.example.com.", Type: "A", TTL: 300, Records: []apiRecord{{Content: "192.0.2.9", Disabled: true}}},
+		},
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(zone)
+	}))
+	defer srv.Close()
+
+	records, err := newTestProvider(t, srv.URL).List(context.Background())
+	if err != nil {
+		t.Fatalf("List error: %v", err)
+	}
+	// 2 A + 1 CNAME + 1 TXT + 1 SRV = 5 (SOA filtered out, disabled skipped)
+	if len(records) != 5 {
+		t.Fatalf("got %d records, want 5: %+v", len(records), records)
+	}
+	byKey := map[string]provider.Record{}
+	for _, r := range records {
+		byKey[string(r.Type)+"|"+r.Hostname+"|"+r.Target] = r
+	}
+	if _, ok := byKey["CNAME|cname.example.com|app.example.com"]; !ok {
+		t.Error("CNAME target should be dot-stripped")
+	}
+	if _, ok := byKey["TXT|_dnsweaver.app.example.com|heritage=dnsweaver"]; !ok {
+		t.Error("TXT content should be unquoted")
+	}
+	srvRec, ok := byKey["SRV|sip.example.com|host.example.com"]
+	if !ok || srvRec.SRV == nil || srvRec.SRV.Port != 5060 {
+		t.Errorf("SRV record not parsed correctly: %+v", srvRec)
+	}
+}
