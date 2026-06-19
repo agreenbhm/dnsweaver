@@ -242,3 +242,64 @@ func (p *Provider) Create(ctx context.Context, record provider.Record) error {
 	)
 	return nil
 }
+
+// Delete removes a DNS record using read-modify-write: it drops the matching
+// content and REPLACEs the rrset with the remainder, or DELETEs the rrset when
+// no records remain. Absent records are a no-op.
+func (p *Provider) Delete(ctx context.Context, record provider.Record) error {
+	content, err := recordContent(record)
+	if err != nil {
+		return fmt.Errorf("encoding %s record: %w", record.Type, err)
+	}
+	existing, err := p.currentRecords(ctx, record.Hostname, record.Type)
+	if err != nil {
+		return fmt.Errorf("reading existing rrset: %w", err)
+	}
+	if len(existing) == 0 {
+		return nil // rrset absent — nothing to delete
+	}
+
+	remaining := make([]apiRecord, 0, len(existing))
+	found := false
+	for _, ar := range existing {
+		if ar.Content == content {
+			found = true
+			continue
+		}
+		remaining = append(remaining, ar)
+	}
+	if !found {
+		return nil // content not present — no-op
+	}
+
+	var rs rrset
+	if len(remaining) == 0 {
+		rs = rrset{
+			Name:       canonicalize(record.Hostname),
+			Type:       string(record.Type),
+			ChangeType: "DELETE",
+		}
+	} else {
+		ttl := record.TTL
+		if ttl <= 0 {
+			ttl = p.ttl
+		}
+		rs = rrset{
+			Name:       canonicalize(record.Hostname),
+			Type:       string(record.Type),
+			TTL:        ttl,
+			ChangeType: "REPLACE",
+			Records:    remaining,
+		}
+	}
+	if err := p.client.PatchRRsets(ctx, p.zone, []rrset{rs}); err != nil {
+		return fmt.Errorf("deleting %s record: %w", record.Type, err)
+	}
+	p.logger.Info("deleted record",
+		slog.String("provider", p.name),
+		slog.String("hostname", record.Hostname),
+		slog.String("type", string(record.Type)),
+		slog.String("target", record.Target),
+	)
+	return nil
+}

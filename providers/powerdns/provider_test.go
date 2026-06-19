@@ -309,3 +309,73 @@ func TestProvider_Create_TTLFallback(t *testing.T) {
 		t.Errorf("TTL = %d, want 300 (provider default)", rs.TTL)
 	}
 }
+
+func TestProvider_Delete_LastRecord(t *testing.T) {
+	m := &mockPDNS{zone: zoneResponse{Name: "example.com.", RRsets: []rrset{
+		{Name: "app.example.com.", Type: "A", TTL: 300, Records: []apiRecord{{Content: "192.0.2.1"}}},
+	}}}
+	srv := m.server(t)
+	defer srv.Close()
+
+	err := newTestProvider(t, srv.URL).Delete(context.Background(), provider.Record{
+		Hostname: "app.example.com", Type: provider.RecordTypeA, Target: "192.0.2.1",
+	})
+	if err != nil {
+		t.Fatalf("Delete error: %v", err)
+	}
+	rs := m.lastRRset(t)
+	if rs.ChangeType != "DELETE" {
+		t.Errorf("changetype = %q, want DELETE when rrset emptied", rs.ChangeType)
+	}
+}
+
+func TestProvider_Delete_KeepsSiblings(t *testing.T) {
+	m := &mockPDNS{zone: zoneResponse{Name: "example.com.", RRsets: []rrset{
+		{Name: "app.example.com.", Type: "A", TTL: 300, Records: []apiRecord{
+			{Content: "192.0.2.1"}, {Content: "192.0.2.2"},
+		}},
+	}}}
+	srv := m.server(t)
+	defer srv.Close()
+
+	err := newTestProvider(t, srv.URL).Delete(context.Background(), provider.Record{
+		Hostname: "app.example.com", Type: provider.RecordTypeA, Target: "192.0.2.1",
+	})
+	if err != nil {
+		t.Fatalf("Delete error: %v", err)
+	}
+	rs := m.lastRRset(t)
+	if rs.ChangeType != "REPLACE" || len(rs.Records) != 1 || rs.Records[0].Content != "192.0.2.2" {
+		t.Errorf("expected REPLACE keeping 192.0.2.2, got %+v", rs)
+	}
+}
+
+func TestProvider_Delete_NoOps(t *testing.T) {
+	// rrset absent entirely
+	m1 := &mockPDNS{zone: zoneResponse{Name: "example.com."}}
+	s1 := m1.server(t)
+	defer s1.Close()
+	if err := newTestProvider(t, s1.URL).Delete(context.Background(), provider.Record{
+		Hostname: "gone.example.com", Type: provider.RecordTypeA, Target: "192.0.2.9",
+	}); err != nil {
+		t.Fatalf("Delete (absent rrset) error: %v", err)
+	}
+	if len(m1.patches) != 0 {
+		t.Errorf("expected no PATCH when rrset absent, got %d", len(m1.patches))
+	}
+
+	// rrset present but target not in it
+	m2 := &mockPDNS{zone: zoneResponse{Name: "example.com.", RRsets: []rrset{
+		{Name: "app.example.com.", Type: "A", TTL: 300, Records: []apiRecord{{Content: "192.0.2.1"}}},
+	}}}
+	s2 := m2.server(t)
+	defer s2.Close()
+	if err := newTestProvider(t, s2.URL).Delete(context.Background(), provider.Record{
+		Hostname: "app.example.com", Type: provider.RecordTypeA, Target: "192.0.2.99",
+	}); err != nil {
+		t.Fatalf("Delete (absent content) error: %v", err)
+	}
+	if len(m2.patches) != 0 {
+		t.Errorf("expected no PATCH when content absent, got %d", len(m2.patches))
+	}
+}
