@@ -248,6 +248,13 @@ func TestProvider_Create_PreservesSiblings(t *testing.T) {
 	if len(rs.Records) != 2 {
 		t.Fatalf("expected 2 records (round-robin), got %+v", rs.Records)
 	}
+	contents := map[string]bool{}
+	for _, r := range rs.Records {
+		contents[r.Content] = true
+	}
+	if !contents["192.0.2.1"] || !contents["192.0.2.2"] {
+		t.Errorf("expected both IPs in merged set, got %+v", rs.Records)
+	}
 }
 
 func TestProvider_Create_Idempotent(t *testing.T) {
@@ -282,5 +289,23 @@ func TestProvider_Create_TXTQuoted(t *testing.T) {
 	rs := m.lastRRset(t)
 	if rs.Records[0].Content != `"heritage=dnsweaver"` {
 		t.Errorf("TXT content = %q, want quoted", rs.Records[0].Content)
+	}
+}
+
+func TestProvider_Create_TTLFallback(t *testing.T) {
+	m := &mockPDNS{zone: zoneResponse{Name: "example.com."}}
+	srv := m.server(t)
+	defer srv.Close()
+
+	err := newTestProvider(t, srv.URL).Create(context.Background(), provider.Record{
+		Hostname: "app.example.com", Type: provider.RecordTypeA, Target: "10.0.0.1",
+		// TTL deliberately omitted (0) -> provider default (300) must be used
+	})
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+	rs := m.lastRRset(t)
+	if rs.TTL != 300 {
+		t.Errorf("TTL = %d, want 300 (provider default)", rs.TTL)
 	}
 }
