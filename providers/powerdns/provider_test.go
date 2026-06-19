@@ -441,3 +441,62 @@ func TestProvider_Update_NotFound(t *testing.T) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }
+
+func TestProvider_Update_DedupOnCollision(t *testing.T) {
+	m := &mockPDNS{zone: zoneResponse{Name: "example.com.", RRsets: []rrset{
+		{Name: "app.example.com.", Type: "A", TTL: 300, Records: []apiRecord{
+			{Content: "192.0.2.1"}, {Content: "192.0.2.2"},
+		}},
+	}}}
+	srv := m.server(t)
+	defer srv.Close()
+
+	err := newTestProvider(t, srv.URL).Update(context.Background(),
+		provider.Record{Hostname: "app.example.com", Type: provider.RecordTypeA, Target: "192.0.2.1"},
+		provider.Record{Hostname: "app.example.com", Type: provider.RecordTypeA, Target: "192.0.2.2"},
+	)
+	if err != nil {
+		t.Fatalf("Update error: %v", err)
+	}
+	rs := m.lastRRset(t)
+	if rs.ChangeType != "REPLACE" {
+		t.Errorf("changetype = %q, want REPLACE", rs.ChangeType)
+	}
+	if len(rs.Records) != 1 {
+		t.Fatalf("expected 1 record (deduped), got %d: %+v", len(rs.Records), rs.Records)
+	}
+	if rs.Records[0].Content != "192.0.2.2" {
+		t.Errorf("content = %q, want 192.0.2.2", rs.Records[0].Content)
+	}
+}
+
+func TestProvider_Update_TTLOnly(t *testing.T) {
+	m := &mockPDNS{zone: zoneResponse{Name: "example.com.", RRsets: []rrset{
+		{Name: "app.example.com.", Type: "A", TTL: 300, Records: []apiRecord{
+			{Content: "192.0.2.1"},
+		}},
+	}}}
+	srv := m.server(t)
+	defer srv.Close()
+
+	err := newTestProvider(t, srv.URL).Update(context.Background(),
+		provider.Record{Hostname: "app.example.com", Type: provider.RecordTypeA, Target: "192.0.2.1"},
+		provider.Record{Hostname: "app.example.com", Type: provider.RecordTypeA, Target: "192.0.2.1", TTL: 60},
+	)
+	if err != nil {
+		t.Fatalf("Update error: %v", err)
+	}
+	rs := m.lastRRset(t)
+	if rs.ChangeType != "REPLACE" {
+		t.Errorf("changetype = %q, want REPLACE", rs.ChangeType)
+	}
+	if rs.TTL != 60 {
+		t.Errorf("TTL = %d, want 60", rs.TTL)
+	}
+	if len(rs.Records) != 1 {
+		t.Fatalf("expected 1 record, got %d: %+v", len(rs.Records), rs.Records)
+	}
+	if rs.Records[0].Content != "192.0.2.1" {
+		t.Errorf("content = %q, want 192.0.2.1", rs.Records[0].Content)
+	}
+}
