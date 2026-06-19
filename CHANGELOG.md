@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **PowerDNS provider via the native Authoritative HTTP API** (`TYPE=powerdns`).
+  Manages A/AAAA/CNAME/SRV/TXT records in a pre-existing zone using the PowerDNS
+  `/api/v1` REST API with `X-API-Key` authentication, including native in-place
+  updates and TXT ownership tracking. This complements the existing
+  [RFC 2136](https://maxfield-allison.github.io/dnsweaver/providers/rfc2136/)
+  path (which drives PowerDNS over DNS UPDATE/TSIG). New per-instance variable
+  `DNSWEAVER_{NAME}_SERVER_ID` (default `localhost`).
+
 ## [1.6.0] - 2026-06-10
 
 ### Added

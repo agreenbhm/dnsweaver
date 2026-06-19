@@ -128,6 +128,7 @@ nav:
       - Technitium: providers/technitium.md
       - Cloudflare: providers/cloudflare.md
       - RFC 2136: providers/rfc2136.md
+      - PowerDNS: providers/powerdns.md
       - Pi-hole: providers/pihole.md
       - AdGuard Home: providers/adguard.md
       - dnsmasq: providers/dnsmasq.md
