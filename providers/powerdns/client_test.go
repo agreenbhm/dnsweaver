@@ -1,6 +1,12 @@
 package powerdns
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
@@ -132,4 +138,129 @@ func TestDecodeContent(t *testing.T) {
 	if err != nil || srv == nil || target != "sip.example.com" || srv.Port != 3 {
 		t.Errorf("SRV decode = %q %+v err=%v", target, srv, err)
 	}
+}
+
+func TestClient_GetZone_SetsAPIKeyAndPath(t *testing.T) {
+	var gotKey, gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotKey = r.Header.Get("X-API-Key")
+		gotPath = r.URL.Path
+		json.NewEncoder(w).Encode(zoneResponse{Name: "example.com.", RRsets: []rrset{
+			{Name: "app.example.com.", Type: "A", TTL: 300, Records: []apiRecord{{Content: "192.0.2.1"}}},
+		}})
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, "secret-key", "localhost")
+	z, err := c.GetZone(context.Background(), "example.com")
+	if err != nil {
+		t.Fatalf("GetZone error: %v", err)
+	}
+	if gotKey != "secret-key" {
+		t.Errorf("X-API-Key = %q, want secret-key", gotKey)
+	}
+	if gotPath != "/api/v1/servers/localhost/zones/example.com." {
+		t.Errorf("path = %q", gotPath)
+	}
+	if len(z.RRsets) != 1 || z.RRsets[0].Records[0].Content != "192.0.2.1" {
+		t.Errorf("unexpected zone payload: %+v", z)
+	}
+}
+
+func TestClient_GetZone_NotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(apiErrorBody{Error: "Not Found"})
+	}))
+	defer srv.Close()
+	c := NewClient(srv.URL, "k", "localhost")
+	_, err := c.GetZone(context.Background(), "example.com")
+	if !errors.Is(err, errZoneNotFound) {
+		t.Errorf("expected errZoneNotFound, got %v", err)
+	}
+}
+
+func TestClient_ErrorMapping(t *testing.T) {
+	cases := []struct {
+		name   string
+		status int
+		want   error
+	}{
+		{"unauthorized", http.StatusUnauthorized, provider.ErrUnauthorized},
+		{"forbidden", http.StatusForbidden, provider.ErrUnauthorized},
+		{"server error", http.StatusInternalServerError, provider.ErrProviderUnavailable},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.status)
+				json.NewEncoder(w).Encode(apiErrorBody{Error: "boom"})
+			}))
+			defer srv.Close()
+			c := NewClient(srv.URL, "k", "localhost")
+			_, err := c.GetZone(context.Background(), "example.com")
+			if !errors.Is(err, tt.want) {
+				t.Errorf("status %d: got %v, want wrapping %v", tt.status, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestClient_Unprocessable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		json.NewEncoder(w).Encode(apiErrorBody{Error: "Conflicting record"})
+	}))
+	defer srv.Close()
+	c := NewClient(srv.URL, "k", "localhost")
+	err := c.PatchRRsets(context.Background(), "example.com", []rrset{{Name: "x.example.com.", Type: "A"}})
+	if err == nil || !strings.Contains(err.Error(), "Conflicting record") {
+		t.Errorf("expected 422 error carrying server message, got %v", err)
+	}
+}
+
+func TestClient_PatchRRsets_SendsBody(t *testing.T) {
+	var got patchRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch {
+			t.Errorf("method = %s, want PATCH", r.Method)
+		}
+		json.NewDecoder(r.Body).Decode(&got)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+	c := NewClient(srv.URL, "k", "localhost")
+	in := []rrset{{Name: "app.example.com.", Type: "A", TTL: 300, ChangeType: "REPLACE", Records: []apiRecord{{Content: "192.0.2.1"}}}}
+	if err := c.PatchRRsets(context.Background(), "example.com", in); err != nil {
+		t.Fatalf("PatchRRsets error: %v", err)
+	}
+	if len(got.RRsets) != 1 || got.RRsets[0].ChangeType != "REPLACE" || got.RRsets[0].Records[0].Content != "192.0.2.1" {
+		t.Errorf("unexpected PATCH body: %+v", got)
+	}
+}
+
+func TestClient_Ping(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		var gotPath string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotPath = r.URL.Path
+			w.Write([]byte(`[{"id":"localhost"}]`))
+		}))
+		defer srv.Close()
+		if err := NewClient(srv.URL, "k", "localhost").Ping(context.Background()); err != nil {
+			t.Fatalf("Ping error: %v", err)
+		}
+		if gotPath != "/api/v1/servers" {
+			t.Errorf("ping path = %q, want /api/v1/servers", gotPath)
+		}
+	})
+	t.Run("unauthorized", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+		}))
+		defer srv.Close()
+		if err := NewClient(srv.URL, "k", "localhost").Ping(context.Background()); !errors.Is(err, provider.ErrUnauthorized) {
+			t.Errorf("expected ErrUnauthorized, got %v", err)
+		}
+	})
 }
