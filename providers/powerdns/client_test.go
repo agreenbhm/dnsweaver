@@ -26,6 +26,11 @@ func TestTXTQuotingRoundTrip(t *testing.T) {
 		"heritage=dnsweaver",
 		"heritage=dnsweaver,instance=pi5",
 		`value with "quotes" inside`,
+		// A value whose content genuinely begins and ends with a double-quote;
+		// the old idempotency guard would have silently corrupted this.
+		`"quoted"`,
+		// A value containing a backslash.
+		`back\slash`,
 	}
 	for _, in := range cases {
 		q := quoteTXT(in)
@@ -35,10 +40,6 @@ func TestTXTQuotingRoundTrip(t *testing.T) {
 		if got := unquoteTXT(q); got != in {
 			t.Errorf("round-trip failed: in=%q quoted=%q out=%q", in, q, got)
 		}
-	}
-	// Already-quoted input is left unchanged by quoteTXT.
-	if got := quoteTXT(`"already"`); got != `"already"` {
-		t.Errorf("quoteTXT double-wrapped: %q", got)
 	}
 }
 
@@ -60,6 +61,18 @@ func TestSRVEncodeParse(t *testing.T) {
 	}
 	if _, _, err := parseSRVContent("10 20 sip.example.com."); err == nil {
 		t.Error("expected error for malformed SRV content")
+	}
+	// Non-numeric priority field must return an error.
+	if _, _, err := parseSRVContent("a 20 5060 host.example.com."); err == nil {
+		t.Error("expected error for non-numeric SRV priority")
+	}
+	// Non-numeric weight field must return an error.
+	if _, _, err := parseSRVContent("10 b 5060 host.example.com."); err == nil {
+		t.Error("expected error for non-numeric SRV weight")
+	}
+	// Non-numeric port field must return an error.
+	if _, _, err := parseSRVContent("10 20 c host.example.com."); err == nil {
+		t.Error("expected error for non-numeric SRV port")
 	}
 }
 
@@ -90,14 +103,31 @@ func TestRecordContentEncode(t *testing.T) {
 }
 
 func TestDecodeContent(t *testing.T) {
-	target, _, _ := decodeContent(provider.RecordTypeCNAME, "host.example.com.")
+	// Identity case: A record passes through unchanged.
+	target, _, err := decodeContent(provider.RecordTypeA, "192.0.2.1")
+	if err != nil {
+		t.Fatalf("A decode error: %v", err)
+	}
+	if target != "192.0.2.1" {
+		t.Errorf("A decode = %q, want %q", target, "192.0.2.1")
+	}
+
+	target, _, err = decodeContent(provider.RecordTypeCNAME, "host.example.com.")
+	if err != nil {
+		t.Fatalf("CNAME decode error: %v", err)
+	}
 	if target != "host.example.com" {
 		t.Errorf("CNAME decode = %q", target)
 	}
-	target, _, _ = decodeContent(provider.RecordTypeTXT, `"heritage=dnsweaver"`)
+
+	target, _, err = decodeContent(provider.RecordTypeTXT, `"heritage=dnsweaver"`)
+	if err != nil {
+		t.Fatalf("TXT decode error: %v", err)
+	}
 	if target != "heritage=dnsweaver" {
 		t.Errorf("TXT decode = %q", target)
 	}
+
 	target, srv, err := decodeContent(provider.RecordTypeSRV, "1 2 3 sip.example.com.")
 	if err != nil || srv == nil || target != "sip.example.com" || srv.Port != 3 {
 		t.Errorf("SRV decode = %q %+v err=%v", target, srv, err)

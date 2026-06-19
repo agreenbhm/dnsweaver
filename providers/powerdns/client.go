@@ -58,12 +58,9 @@ func stripDot(name string) string {
 }
 
 // quoteTXT wraps TXT content in double quotes (PowerDNS's stored form),
-// escaping embedded quotes and backslashes. Already-quoted input is returned
-// unchanged so the function is idempotent.
+// escaping embedded quotes and backslashes. Callers pass dnsweaver's bare,
+// unquoted value, so quoting is unconditional; unquoteTXT is its exact inverse.
 func quoteTXT(s string) string {
-	if len(s) >= 2 && strings.HasPrefix(s, `"`) && strings.HasSuffix(s, `"`) {
-		return s
-	}
 	var b strings.Builder
 	b.WriteByte('"')
 	for _, r := range s {
@@ -144,7 +141,7 @@ func recordContent(rec provider.Record) (string, error) {
 		}
 		return encodeSRVContent(rec.SRV, rec.Target), nil
 	default:
-		return "", fmt.Errorf("unsupported record type %q", rec.Type)
+		return "", fmt.Errorf("unsupported record type %v", rec.Type)
 	}
 }
 
@@ -164,6 +161,6 @@ func decodeContent(rt provider.RecordType, content string) (target string, srv *
 		}
 		return tgt, s, nil
 	default:
-		return "", nil, fmt.Errorf("unsupported record type %q", rt)
+		return "", nil, fmt.Errorf("unsupported record type %v", rt)
 	}
 }
