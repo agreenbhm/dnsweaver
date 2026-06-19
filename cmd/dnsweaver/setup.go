@@ -18,6 +18,7 @@ import (
 	"gitlab.bluewillows.net/root/dnsweaver/providers/cloudflare"
 	"gitlab.bluewillows.net/root/dnsweaver/providers/dnsmasq"
 	"gitlab.bluewillows.net/root/dnsweaver/providers/pihole"
+	"gitlab.bluewillows.net/root/dnsweaver/providers/powerdns"
 	"gitlab.bluewillows.net/root/dnsweaver/providers/rfc2136"
 	"gitlab.bluewillows.net/root/dnsweaver/providers/technitium"
 	"gitlab.bluewillows.net/root/dnsweaver/providers/webhook"
@@ -253,6 +254,9 @@ func registerProviderFactories(registry *provider.Registry) {
 
 	// Register RFC 2136 provider factory (BIND, Windows DNS, PowerDNS, etc.)
 	registry.RegisterFactory("rfc2136", rfc2136.Factory())
+
+	// Register PowerDNS provider factory (native Authoritative HTTP API)
+	registry.RegisterFactory("powerdns", powerdns.Factory())
 
 	// Register AdGuard Home provider factory (local DNS via AdGuard Home API)
 	registry.RegisterFactory("adguard", adguard.Factory())

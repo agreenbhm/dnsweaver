@@ -286,6 +286,8 @@ var providerConfigFields = []struct {
 	{"TSIG_SECRET", true},     // RFC 2136: TSIG secret (supports _FILE)
 	{"TSIG_ALGORITHM", false}, // RFC 2136: TSIG algorithm (hmac-sha256, etc.)
 	{"USE_TCP", false},        // RFC 2136: Force TCP transport
+	// PowerDNS specific fields
+	{"SERVER_ID", false}, // PowerDNS: server id segment in the API path (default "localhost")
 }
 
 // mergeProviderEnvOverrides applies environment variable overrides to a
