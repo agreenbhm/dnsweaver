@@ -568,6 +568,54 @@ func TestProvider_Update_PreservesDisabledSibling(t *testing.T) {
 	}
 }
 
+// Finding 1 regression: desired value already present but DISABLED, listed
+// before the active existing record. The update must leave a single ENABLED
+// desired record, not keep the disabled copy.
+func TestProvider_Update_DesiredDisabledCollision(t *testing.T) {
+	m := &mockPDNS{zone: zoneResponse{Name: "example.test.", RRsets: []rrset{
+		{Name: "app.example.test.", Type: "A", TTL: 300, Records: []apiRecord{
+			{Content: "192.0.2.2", Disabled: true}, // desired, pre-existing & disabled, FIRST
+			{Content: "192.0.2.1"},                 // existing, active
+		}},
+	}}}
+	srv := m.server(t)
+	defer srv.Close()
+	err := newTestProvider(t, srv.URL).Update(context.Background(),
+		provider.Record{Hostname: "app.example.test", Type: provider.RecordTypeA, Target: "192.0.2.1"},
+		provider.Record{Hostname: "app.example.test", Type: provider.RecordTypeA, Target: "192.0.2.2"},
+	)
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	rs := m.lastRRset(t)
+	if len(rs.Records) != 1 {
+		t.Fatalf("expected exactly 1 record, got %+v", rs.Records)
+	}
+	if rs.Records[0].Content != "192.0.2.2" || rs.Records[0].Disabled {
+		t.Errorf("expected single ENABLED 192.0.2.2, got %+v", rs.Records[0])
+	}
+}
+
+// Finding 2: rrset exists but the existing record's content is absent ->
+// ErrNotFound (Updater contract), and no PATCH is issued.
+func TestProvider_Update_ExistingAbsentReturnsNotFound(t *testing.T) {
+	m := &mockPDNS{zone: zoneResponse{Name: "example.test.", RRsets: []rrset{
+		{Name: "app.example.test.", Type: "A", TTL: 300, Records: []apiRecord{{Content: "192.0.2.9"}}},
+	}}}
+	srv := m.server(t)
+	defer srv.Close()
+	err := newTestProvider(t, srv.URL).Update(context.Background(),
+		provider.Record{Hostname: "app.example.test", Type: provider.RecordTypeA, Target: "192.0.2.1"}, // not in rrset
+		provider.Record{Hostname: "app.example.test", Type: provider.RecordTypeA, Target: "192.0.2.2"},
+	)
+	if !errors.Is(err, provider.ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+	if len(m.patches) != 0 {
+		t.Errorf("must not PATCH when existing record is absent, got %d patches", len(m.patches))
+	}
+}
+
 func TestProvider_Delete_PreservesSiblingTTL(t *testing.T) {
 	m := &mockPDNS{zone: zoneResponse{Name: "example.test.", RRsets: []rrset{
 		{Name: "app.example.test.", Type: "A", TTL: 600, Records: []apiRecord{

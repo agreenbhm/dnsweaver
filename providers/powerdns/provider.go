@@ -320,7 +320,8 @@ func (p *Provider) Delete(ctx context.Context, record provider.Record) error {
 
 // Update modifies a record in place by swapping existing content for desired
 // content within the rrset (preserving siblings) and REPLACEing it. Implements
-// provider.Updater. Returns provider.ErrNotFound if the rrset does not exist.
+// provider.Updater. Returns provider.ErrNotFound if the rrset, or the specific
+// existing record within it, is not present.
 // Siblings' Disabled state is preserved; only the written record is enabled.
 func (p *Provider) Update(ctx context.Context, existing, desired provider.Record) error {
 	desiredContent, err := recordContent(desired)
@@ -340,28 +341,39 @@ func (p *Provider) Update(ctx context.Context, existing, desired provider.Record
 	if err != nil {
 		return fmt.Errorf("reading existing rrset: %w", err)
 	}
-	if rs == nil || len(rs.Records) == 0 {
+	if rs == nil {
 		return provider.ErrNotFound
 	}
 
-	out := make([]apiRecord, 0, len(rs.Records)+1)
-	seen := make(map[string]bool, len(rs.Records)+1)
-	replaced := false
+	// The record being updated is identified by its current content. If it is
+	// not present in the rrset, there is nothing to update in place; report
+	// not-found per the Updater contract (the reconciler will recreate it).
+	hasExisting := false
 	for _, ar := range rs.Records {
-		rec := ar // preserve content + Disabled for untouched siblings
 		if ar.Content == existingContent {
-			rec.Content = desiredContent
-			rec.Disabled = false // the record we are writing is active
-			replaced = true
+			hasExisting = true
+			break
 		}
-		if seen[rec.Content] {
+	}
+	if !hasExisting {
+		return provider.ErrNotFound
+	}
+
+	// Build the replacement set: collapse existingContent and any pre-existing
+	// copy of desiredContent into a single ENABLED desired record (so the active
+	// replacement always wins over a stale disabled copy), and preserve every
+	// other sibling verbatim including its Disabled flag.
+	out := make([]apiRecord, 0, len(rs.Records))
+	desiredWritten := false
+	for _, ar := range rs.Records {
+		if ar.Content == existingContent || ar.Content == desiredContent {
+			if !desiredWritten {
+				out = append(out, apiRecord{Content: desiredContent}) // Disabled:false
+				desiredWritten = true
+			}
 			continue
 		}
-		seen[rec.Content] = true
-		out = append(out, rec)
-	}
-	if !replaced && !seen[desiredContent] {
-		out = append(out, apiRecord{Content: desiredContent})
+		out = append(out, ar) // preserve sibling verbatim (incl. Disabled)
 	}
 
 	patch := rrset{
