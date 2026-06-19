@@ -1,0 +1,64 @@
+name: Sync to GitLab
+
+# Mirrors the public source of truth (GitHub) into the GitLab instance, which
+# runs the heavy release/build/deploy pipelines. Direction is one-way:
+#   GitHub (main, tags)  ->  GitLab
+# Nothing pushes from GitLab back to GitHub on these refs, so there is no
+# force-push race. Maintainer private work flows the other way by pushing
+# feature branches GitLab -> GitHub manually before opening a PR.
+#
+# GitLab is reachable from GitHub-hosted runners over HTTPS via its
+# Cloudflare-proxied hostname. Pushes are small and incremental, well within
+# Cloudflare's request-body limit.
+#
+# Required repository secrets:
+#   GITLAB_TOKEN         - GitLab project access token with write_repository
+#   GITLAB_HOST          - e.g. gitlab.probablyfine.dev
+#   GITLAB_PROJECT_PATH  - e.g. root/dnsweaver
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-to-gitlab
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Push to GitLab
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push main and tags to GitLab
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_HOST: ${{ secrets.GITLAB_HOST }}
+          GITLAB_PROJECT_PATH: ${{ secrets.GITLAB_PROJECT_PATH }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GITLAB_TOKEN}" ] || [ -z "${GITLAB_HOST}" ] || [ -z "${GITLAB_PROJECT_PATH}" ]; then
+            echo "::error::GITLAB_TOKEN, GITLAB_HOST, and GITLAB_PROJECT_PATH secrets must be set."
+            exit 1
+          fi
+
+          git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@${GITLAB_HOST}/${GITLAB_PROJECT_PATH}.git"
+
+          if [ "${GITHUB_REF}" != "${GITHUB_REF#refs/tags/}" ]; then
+            echo "Syncing tag ${GITHUB_REF_NAME} -> GitLab"
+            git push gitlab "${GITHUB_REF}:${GITHUB_REF}"
+          else
+            echo "Syncing main -> GitLab"
+            # Fetch the remote-tracking ref so --force-with-lease has a baseline.
+            git fetch gitlab main || true
+            git push gitlab "HEAD:refs/heads/main" --force-with-lease
+          fi
