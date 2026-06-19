@@ -303,3 +303,73 @@ func (p *Provider) Delete(ctx context.Context, record provider.Record) error {
 	)
 	return nil
 }
+
+// Update modifies a record in place by swapping existing content for desired
+// content within the rrset (preserving siblings) and REPLACEing it. Implements
+// provider.Updater. Returns provider.ErrNotFound if the rrset does not exist.
+func (p *Provider) Update(ctx context.Context, existing, desired provider.Record) error {
+	desiredContent, err := recordContent(desired)
+	if err != nil {
+		return fmt.Errorf("encoding desired %s record: %w", desired.Type, err)
+	}
+	existingContent, err := recordContent(existing)
+	if err != nil {
+		return fmt.Errorf("encoding existing %s record: %w", existing.Type, err)
+	}
+	ttl := desired.TTL
+	if ttl <= 0 {
+		ttl = p.ttl
+	}
+
+	current, err := p.currentRecords(ctx, desired.Hostname, desired.Type)
+	if err != nil {
+		return fmt.Errorf("reading existing rrset: %w", err)
+	}
+	if len(current) == 0 {
+		return provider.ErrNotFound
+	}
+
+	out := make([]apiRecord, 0, len(current)+1)
+	seen := make(map[string]bool, len(current)+1)
+	replaced := false
+	for _, ar := range current {
+		c := ar.Content
+		if c == existingContent {
+			c = desiredContent
+			replaced = true
+		}
+		if seen[c] {
+			continue
+		}
+		seen[c] = true
+		out = append(out, apiRecord{Content: c, Disabled: false})
+	}
+	if !replaced && !seen[desiredContent] {
+		// existing content not found; ensure the desired value is present.
+		out = append(out, apiRecord{Content: desiredContent, Disabled: false})
+	}
+
+	rs := rrset{
+		Name:       canonicalize(desired.Hostname),
+		Type:       string(desired.Type),
+		TTL:        ttl,
+		ChangeType: "REPLACE",
+		Records:    out,
+	}
+	if err := p.client.PatchRRsets(ctx, p.zone, []rrset{rs}); err != nil {
+		return fmt.Errorf("updating %s record: %w", desired.Type, err)
+	}
+	p.logger.Info("updated record",
+		slog.String("provider", p.name),
+		slog.String("hostname", desired.Hostname),
+		slog.String("type", string(desired.Type)),
+		slog.String("old_target", existing.Target),
+		slog.String("new_target", desired.Target),
+		slog.Int("ttl", ttl),
+	)
+	return nil
+}
+
+// Ensure Provider implements the required interfaces at compile time.
+var _ provider.Provider = (*Provider)(nil)
+var _ provider.Updater = (*Provider)(nil)

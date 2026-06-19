@@ -379,3 +379,65 @@ func TestProvider_Delete_NoOps(t *testing.T) {
 		t.Errorf("expected no PATCH when content absent, got %d", len(m2.patches))
 	}
 }
+
+func TestProvider_Update_TargetChange(t *testing.T) {
+	m := &mockPDNS{zone: zoneResponse{Name: "example.com.", RRsets: []rrset{
+		{Name: "app.example.com.", Type: "A", TTL: 300, Records: []apiRecord{{Content: "192.0.2.1"}}},
+	}}}
+	srv := m.server(t)
+	defer srv.Close()
+
+	err := newTestProvider(t, srv.URL).Update(context.Background(),
+		provider.Record{Hostname: "app.example.com", Type: provider.RecordTypeA, Target: "192.0.2.1"},
+		provider.Record{Hostname: "app.example.com", Type: provider.RecordTypeA, Target: "192.0.2.2", TTL: 60},
+	)
+	if err != nil {
+		t.Fatalf("Update error: %v", err)
+	}
+	rs := m.lastRRset(t)
+	if rs.ChangeType != "REPLACE" || rs.TTL != 60 {
+		t.Errorf("unexpected rrset header: %+v", rs)
+	}
+	if len(rs.Records) != 1 || rs.Records[0].Content != "192.0.2.2" {
+		t.Errorf("records = %+v, want only 192.0.2.2", rs.Records)
+	}
+}
+
+func TestProvider_Update_PreservesSiblings(t *testing.T) {
+	m := &mockPDNS{zone: zoneResponse{Name: "example.com.", RRsets: []rrset{
+		{Name: "app.example.com.", Type: "A", TTL: 300, Records: []apiRecord{
+			{Content: "192.0.2.1"}, {Content: "192.0.2.2"},
+		}},
+	}}}
+	srv := m.server(t)
+	defer srv.Close()
+
+	err := newTestProvider(t, srv.URL).Update(context.Background(),
+		provider.Record{Hostname: "app.example.com", Type: provider.RecordTypeA, Target: "192.0.2.1"},
+		provider.Record{Hostname: "app.example.com", Type: provider.RecordTypeA, Target: "192.0.2.3"},
+	)
+	if err != nil {
+		t.Fatalf("Update error: %v", err)
+	}
+	rs := m.lastRRset(t)
+	contents := map[string]bool{}
+	for _, ar := range rs.Records {
+		contents[ar.Content] = true
+	}
+	if len(rs.Records) != 2 || !contents["192.0.2.2"] || !contents["192.0.2.3"] || contents["192.0.2.1"] {
+		t.Errorf("expected {192.0.2.2, 192.0.2.3}, got %+v", rs.Records)
+	}
+}
+
+func TestProvider_Update_NotFound(t *testing.T) {
+	m := &mockPDNS{zone: zoneResponse{Name: "example.com."}}
+	srv := m.server(t)
+	defer srv.Close()
+	err := newTestProvider(t, srv.URL).Update(context.Background(),
+		provider.Record{Hostname: "gone.example.com", Type: provider.RecordTypeA, Target: "192.0.2.1"},
+		provider.Record{Hostname: "gone.example.com", Type: provider.RecordTypeA, Target: "192.0.2.2"},
+	)
+	if !errors.Is(err, provider.ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
