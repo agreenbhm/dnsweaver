@@ -180,3 +180,65 @@ func (p *Provider) List(ctx context.Context) ([]provider.Record, error) {
 	)
 	return records, nil
 }
+
+// currentRecords returns the existing PowerDNS records for hostname+type, or
+// nil if no such rrset exists in the zone.
+func (p *Provider) currentRecords(ctx context.Context, hostname string, rt provider.RecordType) ([]apiRecord, error) {
+	zone, err := p.client.GetZone(ctx, p.zone)
+	if err != nil {
+		return nil, err
+	}
+	name := canonicalize(hostname)
+	for _, rs := range zone.RRsets {
+		if rs.Name == name && rs.Type == string(rt) {
+			return rs.Records, nil
+		}
+	}
+	return nil, nil
+}
+
+// Create adds a DNS record using read-modify-write: it merges the new content
+// into the existing rrset (preserving siblings) and REPLACEs the rrset.
+func (p *Provider) Create(ctx context.Context, record provider.Record) error {
+	content, err := recordContent(record)
+	if err != nil {
+		return fmt.Errorf("encoding %s record: %w", record.Type, err)
+	}
+	ttl := record.TTL
+	if ttl <= 0 {
+		ttl = p.ttl
+	}
+
+	existing, err := p.currentRecords(ctx, record.Hostname, record.Type)
+	if err != nil {
+		return fmt.Errorf("reading existing rrset: %w", err)
+	}
+	for _, ar := range existing {
+		if ar.Content == content {
+			return nil // already present — idempotent no-op
+		}
+	}
+
+	merged := make([]apiRecord, 0, len(existing)+1)
+	merged = append(merged, existing...)
+	merged = append(merged, apiRecord{Content: content, Disabled: false})
+
+	rs := rrset{
+		Name:       canonicalize(record.Hostname),
+		Type:       string(record.Type),
+		TTL:        ttl,
+		ChangeType: "REPLACE",
+		Records:    merged,
+	}
+	if err := p.client.PatchRRsets(ctx, p.zone, []rrset{rs}); err != nil {
+		return fmt.Errorf("creating %s record: %w", record.Type, err)
+	}
+	p.logger.Info("created record",
+		slog.String("provider", p.name),
+		slog.String("hostname", record.Hostname),
+		slog.String("type", string(record.Type)),
+		slog.String("target", record.Target),
+		slog.Int("ttl", ttl),
+	)
+	return nil
+}

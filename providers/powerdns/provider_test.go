@@ -169,3 +169,118 @@ func TestProvider_List_SkipsUndecodableRecord(t *testing.T) {
 		t.Errorf("expected valid A record (good.example.com/192.0.2.1), got %+v", records[0])
 	}
 }
+
+// mockPDNS is an in-memory PowerDNS zone that serves GET and records PATCHes.
+type mockPDNS struct {
+	zone    zoneResponse
+	patches []patchRequest
+}
+
+func (m *mockPDNS) server(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			json.NewEncoder(w).Encode(m.zone)
+		case http.MethodPatch:
+			var pr patchRequest
+			if err := json.NewDecoder(r.Body).Decode(&pr); err != nil {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				return
+			}
+			m.patches = append(m.patches, pr)
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	}))
+}
+
+func (m *mockPDNS) lastRRset(t *testing.T) rrset {
+	t.Helper()
+	if len(m.patches) == 0 {
+		t.Fatal("no PATCH recorded")
+	}
+	last := m.patches[len(m.patches)-1]
+	if len(last.RRsets) != 1 {
+		t.Fatalf("expected 1 rrset in patch, got %d", len(last.RRsets))
+	}
+	return last.RRsets[0]
+}
+
+func TestProvider_Create_EmptyZone(t *testing.T) {
+	m := &mockPDNS{zone: zoneResponse{Name: "example.com."}}
+	srv := m.server(t)
+	defer srv.Close()
+
+	err := newTestProvider(t, srv.URL).Create(context.Background(), provider.Record{
+		Hostname: "app.example.com", Type: provider.RecordTypeA, Target: "192.0.2.1", TTL: 120,
+	})
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+	rs := m.lastRRset(t)
+	if rs.Name != "app.example.com." || rs.Type != "A" || rs.ChangeType != "REPLACE" {
+		t.Errorf("unexpected rrset: %+v", rs)
+	}
+	if rs.TTL != 120 {
+		t.Errorf("TTL = %d, want 120", rs.TTL)
+	}
+	if len(rs.Records) != 1 || rs.Records[0].Content != "192.0.2.1" {
+		t.Errorf("records = %+v", rs.Records)
+	}
+}
+
+func TestProvider_Create_PreservesSiblings(t *testing.T) {
+	m := &mockPDNS{zone: zoneResponse{Name: "example.com.", RRsets: []rrset{
+		{Name: "app.example.com.", Type: "A", TTL: 300, Records: []apiRecord{{Content: "192.0.2.1"}}},
+	}}}
+	srv := m.server(t)
+	defer srv.Close()
+
+	err := newTestProvider(t, srv.URL).Create(context.Background(), provider.Record{
+		Hostname: "app.example.com", Type: provider.RecordTypeA, Target: "192.0.2.2",
+	})
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+	rs := m.lastRRset(t)
+	if len(rs.Records) != 2 {
+		t.Fatalf("expected 2 records (round-robin), got %+v", rs.Records)
+	}
+}
+
+func TestProvider_Create_Idempotent(t *testing.T) {
+	m := &mockPDNS{zone: zoneResponse{Name: "example.com.", RRsets: []rrset{
+		{Name: "app.example.com.", Type: "A", TTL: 300, Records: []apiRecord{{Content: "192.0.2.1"}}},
+	}}}
+	srv := m.server(t)
+	defer srv.Close()
+
+	err := newTestProvider(t, srv.URL).Create(context.Background(), provider.Record{
+		Hostname: "app.example.com", Type: provider.RecordTypeA, Target: "192.0.2.1",
+	})
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+	if len(m.patches) != 0 {
+		t.Errorf("expected no PATCH for idempotent create, got %d", len(m.patches))
+	}
+}
+
+func TestProvider_Create_TXTQuoted(t *testing.T) {
+	m := &mockPDNS{zone: zoneResponse{Name: "example.com."}}
+	srv := m.server(t)
+	defer srv.Close()
+
+	err := newTestProvider(t, srv.URL).Create(context.Background(), provider.Record{
+		Hostname: "_dnsweaver.app.example.com", Type: provider.RecordTypeTXT, Target: "heritage=dnsweaver",
+	})
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+	rs := m.lastRRset(t)
+	if rs.Records[0].Content != `"heritage=dnsweaver"` {
+		t.Errorf("TXT content = %q, want quoted", rs.Records[0].Content)
+	}
+}
