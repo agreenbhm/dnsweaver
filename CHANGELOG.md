@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **OVHcloud DNS provider** (`TYPE=ovh`). Manages `A`, `AAAA`, `CNAME`, `SRV`,
+  and `TXT` records in OVH DNS zones via the OVH API. Authenticates with an
+  application key, application secret, and consumer key (all support the `_FILE`
+  suffix for Docker/Kubernetes secrets) and signs requests against OVH server
+  time. Per-instance configuration:
+  - `DNSWEAVER_{NAME}_APPLICATION_KEY` / `_APPLICATION_SECRET` / `_CONSUMER_KEY`
+    — OVH API credentials (required).
+  - `DNSWEAVER_{NAME}_ENDPOINT` — API region (`ovh-eu` default, plus `ovh-ca`,
+    `ovh-us`, `kimsufi-*`, `soyoustart-*`).
+  - `DNSWEAVER_{NAME}_ZONE` — DNS zone name (required).
+  - `DNSWEAVER_{NAME}_TTL` — record TTL (default `3600`, minimum `60`, or `0`
+    for the zone default).
+  Hostnames are converted to zone-relative subdomains automatically and the zone
+  is refreshed after every change so updates propagate without manual steps. The
+  provider supports native in-place updates and shares the unified TLS
+  configuration surface (`DNSWEAVER_{NAME}_TLS_*`).
+
 ## [2.0.0] - 2026-06-21
 
 This release contains no runtime behavior changes. It is a breaking release
@@ -32,8 +50,6 @@ release workflow.
   (GHCR + Docker Hub) and publishing GitHub Releases on version tags. `main` and
   tags are synced one-way GitHub→GitLab.
 - Removed the dead `advanced-git-sync` integration.
-
-
 
 ### Added
 - **SSH remote management for the dnsmasq provider is now functional**

@@ -286,6 +286,11 @@ var providerConfigFields = []struct {
 	{"TSIG_SECRET", true},     // RFC 2136: TSIG secret (supports _FILE)
 	{"TSIG_ALGORITHM", false}, // RFC 2136: TSIG algorithm (hmac-sha256, etc.)
 	{"USE_TCP", false},        // RFC 2136: Force TCP transport
+	// OVH specific fields
+	{"APPLICATION_KEY", true},    // OVH: application key (supports _FILE)
+	{"APPLICATION_SECRET", true}, // OVH: application secret (supports _FILE)
+	{"CONSUMER_KEY", true},       // OVH: consumer key (supports _FILE)
+	{"ENDPOINT", false},          // OVH: API region (e.g. ovh-eu)
 }
 
 // mergeProviderEnvOverrides applies environment variable overrides to a

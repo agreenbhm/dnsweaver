@@ -20,6 +20,14 @@ dnsweaver supports multiple DNS providers, each with different capabilities and 
 
     [:octicons-arrow-right-24: Configuration](cloudflare.md)
 
+-   :material-cloud:{ .lg .middle } **OVHcloud**
+
+    ---
+
+    Public DNS for OVH-hosted domains. REST API.
+
+    [:octicons-arrow-right-24: Configuration](ovh.md)
+
 -   :material-dns:{ .lg .middle } **Technitium**
 
     ---
@@ -76,6 +84,7 @@ dnsweaver supports multiple DNS providers, each with different capabilities and 
 | :------- | :------- | :----------- | :------- |
 | [Technitium](technitium.md) | REST API | A, AAAA, CNAME, SRV, TXT | Self-hosted, full-featured DNS |
 | [Cloudflare](cloudflare.md) | REST API | A, AAAA, CNAME, SRV, TXT | Public DNS with CDN/proxy |
+| [OVHcloud](ovh.md) | REST API | A, AAAA, CNAME, SRV, TXT | Public DNS for OVH-hosted domains |
 | [RFC 2136](rfc2136.md) | DNS Protocol | A, AAAA, CNAME, SRV, TXT | BIND, Windows DNS, PowerDNS, Knot |
 | [Pi-hole](pihole.md) | REST API or File | A, CNAME | Existing Pi-hole setups |
 | [AdGuard Home](adguard.md) | REST API | A, AAAA, CNAME | Existing AdGuard Home setups |
