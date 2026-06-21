@@ -19,6 +19,7 @@ import (
 	"github.com/maxfield-allison/dnsweaver/providers/dnsmasq"
 	"github.com/maxfield-allison/dnsweaver/providers/ovh"
 	"github.com/maxfield-allison/dnsweaver/providers/pihole"
+	"github.com/maxfield-allison/dnsweaver/providers/powerdns"
 	"github.com/maxfield-allison/dnsweaver/providers/rfc2136"
 	"github.com/maxfield-allison/dnsweaver/providers/technitium"
 	"github.com/maxfield-allison/dnsweaver/providers/webhook"
@@ -254,6 +255,9 @@ func registerProviderFactories(registry *provider.Registry) {
 
 	// Register RFC 2136 provider factory (BIND, Windows DNS, PowerDNS, etc.)
 	registry.RegisterFactory("rfc2136", rfc2136.Factory())
+
+	// Register PowerDNS provider factory (native Authoritative HTTP API)
+	registry.RegisterFactory("powerdns", powerdns.Factory())
 
 	// Register AdGuard Home provider factory (local DNS via AdGuard Home API)
 	registry.RegisterFactory("adguard", adguard.Factory())

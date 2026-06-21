@@ -291,6 +291,8 @@ var providerConfigFields = []struct {
 	{"APPLICATION_SECRET", true}, // OVH: application secret (supports _FILE)
 	{"CONSUMER_KEY", true},       // OVH: consumer key (supports _FILE)
 	{"ENDPOINT", false},          // OVH: API region (e.g. ovh-eu)
+	// PowerDNS specific fields
+	{"SERVER_ID", false}, // PowerDNS: server id segment in the API path (default "localhost")
 }
 
 // mergeProviderEnvOverrides applies environment variable overrides to a

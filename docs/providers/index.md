@@ -86,6 +86,7 @@ dnsweaver supports multiple DNS providers, each with different capabilities and 
 | [Cloudflare](cloudflare.md) | REST API | A, AAAA, CNAME, SRV, TXT | Public DNS with CDN/proxy |
 | [OVHcloud](ovh.md) | REST API | A, AAAA, CNAME, SRV, TXT | Public DNS for OVH-hosted domains |
 | [RFC 2136](rfc2136.md) | DNS Protocol | A, AAAA, CNAME, SRV, TXT | BIND, Windows DNS, PowerDNS, Knot |
+| [PowerDNS](powerdns.md) | REST API | A, AAAA, CNAME, SRV, TXT | PowerDNS via native HTTP API |
 | [Pi-hole](pihole.md) | REST API or File | A, CNAME | Existing Pi-hole setups |
 | [AdGuard Home](adguard.md) | REST API | A, AAAA, CNAME | Existing AdGuard Home setups |
 | [dnsmasq](dnsmasq.md) | File | A, CNAME | Simple file-based DNS |
