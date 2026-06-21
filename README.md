@@ -120,7 +120,7 @@ flowchart LR
 
 ### TLS Configuration
 
-Every HTTP-based provider (Technitium, AdGuard Home, Cloudflare, OVHcloud, Pi-hole, Webhook) and the Proxmox source share a single TLS configuration surface:
+Every HTTP-based provider (Technitium, AdGuard Home, Cloudflare, OVHcloud, PowerDNS, Pi-hole, Webhook) and the Proxmox source share a single TLS configuration surface:
 
 | Env key (per instance) | Purpose |
 |------------------------|---------|

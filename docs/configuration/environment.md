@@ -102,7 +102,7 @@ Replace `{NAME}` with your instance name. For example, instance `internal-dns` u
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DNSWEAVER_{NAME}_TYPE` | Yes | Provider type: `technitium`, `cloudflare`, `ovh`, `rfc2136`, `pihole`, `dnsmasq`, `adguard`, `webhook` |
+| `DNSWEAVER_{NAME}_TYPE` | Yes | Provider type: `technitium`, `cloudflare`, `ovh`, `rfc2136`, `powerdns`, `pihole`, `dnsmasq`, `adguard`, `webhook` |
 | `DNSWEAVER_{NAME}_RECORD_TYPE` | No | Record type: `A`, `AAAA`, `CNAME` (default: `A`) |
 | `DNSWEAVER_{NAME}_TARGET` | Yes | Record target (IPv4, IPv6, or hostname) |
 | `DNSWEAVER_{NAME}_DOMAINS` | Yes | Glob patterns for matching hostnames |
@@ -172,7 +172,9 @@ See the individual provider documentation for complete settings:
 - [Cloudflare](../providers/cloudflare.md)
 - [OVHcloud](../providers/ovh.md)
 - [RFC 2136](../providers/rfc2136.md)
+- [PowerDNS](../providers/powerdns.md)
 - [Pi-hole](../providers/pihole.md)
+- [AdGuard Home](../providers/adguard.md)
 - [dnsmasq](../providers/dnsmasq.md)
 - [Webhook](../providers/webhook.md)
 

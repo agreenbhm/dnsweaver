@@ -68,6 +68,14 @@ dnsweaver supports multiple DNS providers, each with different capabilities and 
 
     [:octicons-arrow-right-24: Configuration](rfc2136.md)
 
+-   :material-server-network:{ .lg .middle } **PowerDNS**
+
+    ---
+
+    PowerDNS Authoritative Server via its native HTTP API. REST API.
+
+    [:octicons-arrow-right-24: Configuration](powerdns.md)
+
 -   :material-shield-home:{ .lg .middle } **AdGuard Home**
 
     ---
