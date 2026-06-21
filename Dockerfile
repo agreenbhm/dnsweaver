@@ -60,8 +60,8 @@ FROM alpine:${ALPINE_VERSION}
 # Labels
 LABEL org.opencontainers.image.title="dnsweaver" \
     org.opencontainers.image.description="Automatic DNS record management for Docker and Kubernetes workloads" \
-    org.opencontainers.image.source="https://gitlab.bluewillows.net/root/dnsweaver" \
-    org.opencontainers.image.vendor="bluewillows.net" \
+    org.opencontainers.image.source="https://github.com/maxfield-allison/dnsweaver" \
+    org.opencontainers.image.vendor="maxfield-allison" \
     org.opencontainers.image.base.name="alpine:3.23"
 
 # Changing CACHE_BUST invalidates Docker layer cache for apk upgrade.

@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strings"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
-	"gitlab.bluewillows.net/root/dnsweaver/providers/dnsmasq"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/providers/dnsmasq"
 )
 
 // Provider implements provider.Provider for Pi-hole DNS.

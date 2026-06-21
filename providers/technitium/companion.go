@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 // companionHTTPSSvcPriority is the SvcPriority used for auto-created companion HTTPS records.

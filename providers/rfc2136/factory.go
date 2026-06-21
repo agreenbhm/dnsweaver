@@ -3,8 +3,8 @@ package rfc2136
 import (
 	"log/slog"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/dnsupdate"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/dnsupdate"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 // Factory returns a provider.Factory for creating RFC 2136 provider instances.

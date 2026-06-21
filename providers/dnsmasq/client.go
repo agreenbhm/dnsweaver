@@ -15,7 +15,7 @@ import (
 	"strings"
 	"sync"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 // dnsmasqRecord represents a parsed dnsmasq DNS record.

@@ -17,17 +17,17 @@ import (
 	"syscall"
 	"time"
 
-	"gitlab.bluewillows.net/root/dnsweaver/internal/config"
-	"gitlab.bluewillows.net/root/dnsweaver/internal/docker"
-	"gitlab.bluewillows.net/root/dnsweaver/internal/health"
-	k8s "gitlab.bluewillows.net/root/dnsweaver/internal/kubernetes"
-	"gitlab.bluewillows.net/root/dnsweaver/internal/metrics"
-	proxmoxclient "gitlab.bluewillows.net/root/dnsweaver/internal/proxmox"
-	"gitlab.bluewillows.net/root/dnsweaver/internal/reconciler"
-	"gitlab.bluewillows.net/root/dnsweaver/internal/watcher"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/source"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
+	"github.com/maxfield-allison/dnsweaver/internal/config"
+	"github.com/maxfield-allison/dnsweaver/internal/docker"
+	"github.com/maxfield-allison/dnsweaver/internal/health"
+	k8s "github.com/maxfield-allison/dnsweaver/internal/kubernetes"
+	"github.com/maxfield-allison/dnsweaver/internal/metrics"
+	proxmoxclient "github.com/maxfield-allison/dnsweaver/internal/proxmox"
+	"github.com/maxfield-allison/dnsweaver/internal/reconciler"
+	"github.com/maxfield-allison/dnsweaver/internal/watcher"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/source"
+	"github.com/maxfield-allison/dnsweaver/pkg/workload"
 )
 
 // Version and BuildDate are set via ldflags during build.

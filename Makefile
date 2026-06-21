@@ -20,7 +20,7 @@ BINARY_NAME := dnsweaver
 CMD_PATH := ./cmd/dnsweaver
 
 # Docker parameters
-DOCKER_IMAGE := registry.bluewillows.net/root/dnsweaver
+DOCKER_IMAGE := ghcr.io/maxfield-allison/dnsweaver
 DOCKER_TAG := dev
 
 # Build flags

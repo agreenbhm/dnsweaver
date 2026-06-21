@@ -3,7 +3,7 @@ package resources
 import (
 	corev1 "k8s.io/api/core/v1"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
+	"github.com/maxfield-allison/dnsweaver/pkg/workload"
 )
 
 // Well-known annotations for hostname extraction from Services.

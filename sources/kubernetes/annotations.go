@@ -20,7 +20,7 @@ import (
 	"strconv"
 	"strings"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/source"
+	"github.com/maxfield-allison/dnsweaver/pkg/source"
 )
 
 // Annotation key constants for the dnsweaver.dev/ prefix.

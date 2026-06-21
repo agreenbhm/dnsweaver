@@ -1,7 +1,7 @@
 # dnsweaver - GitLab CI/CD Pipeline
 # Streamlined from go-project-template
 
-stages: [validate, test, security, build, pages, docker, mirror, deploy, integration, github-release]
+stages: [validate, test, security, build, pages, docker, deploy, integration, github-release]
 
 variables:
   GOPROXY: https://proxy.golang.org,direct
@@ -299,53 +299,6 @@ docker:manifest:
   tags: [docker]
 
 # ─────────────────────────────────────────────────────────────────────────────
-# GitHub Mirror (native push - preserves PR history)
-# ─────────────────────────────────────────────────────────────────────────────
-
-.mirror-base:
-  stage: mirror
-  image: alpine:3.21
-  needs:
-    - job: docker:manifest
-      optional: true
-  before_script:
-    - apk add --no-cache git
-    - git config --global user.email "ci@gitlab.local"
-    - git config --global user.name "GitLab CI"
-
-github:mirror:
-  extends: .mirror-base
-  variables:
-    GIT_DEPTH: 0  # Full clone for complete history
-  script:
-    - |
-      if [ "$CI_COMMIT_BRANCH" = "develop" ]; then
-        GITHUB_BRANCH="dev"
-      else
-        GITHUB_BRANCH="$CI_COMMIT_BRANCH"
-      fi
-      git remote add github "https://$GITHUB_USERNAME:$GITHUB_TOKEN@github.com/$GITHUB_REPO.git" || true
-      git fetch origin $CI_COMMIT_BRANCH --unshallow 2>/dev/null || git fetch origin $CI_COMMIT_BRANCH
-      git checkout -B $CI_COMMIT_BRANCH origin/$CI_COMMIT_BRANCH
-      git push github $CI_COMMIT_BRANCH:$GITHUB_BRANCH --force
-      echo "✅ Mirrored $CI_COMMIT_BRANCH → github:$GITHUB_BRANCH"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"
-
-github:mirror:tags:
-  extends: .mirror-base
-  variables:
-    GIT_DEPTH: 0  # Full clone for complete history
-  script:
-    - |
-      git remote add github "https://$GITHUB_USERNAME:$GITHUB_TOKEN@github.com/$GITHUB_REPO.git" || true
-      git fetch origin --tags --unshallow 2>/dev/null || git fetch origin --tags
-      git push github $CI_COMMIT_TAG
-      echo "✅ Pushed tag $CI_COMMIT_TAG to GitHub"
-  rules:
-    - if: $CI_COMMIT_TAG
-
-# ─────────────────────────────────────────────────────────────────────────────
 # Deploy
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -459,7 +412,7 @@ github:build:arm64:
 github:release:
   stage: github-release
   image: alpine:3.21
-  needs: [github:build:amd64, github:build:arm64, github:mirror:tags]
+  needs: [github:build:amd64, github:build:arm64]
   before_script:
     - apk add --no-cache curl jq docker-cli
     - echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USERNAME" --password-stdin

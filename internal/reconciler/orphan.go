@@ -6,8 +6,8 @@ import (
 	"context"
 	"log/slog"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/source"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/source"
 )
 
 // cleanupOrphans removes records for hostnames that are no longer in any workload.

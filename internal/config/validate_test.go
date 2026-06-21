@@ -3,7 +3,7 @@ package config
 import (
 	"testing"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 func TestValidateTargetRecordType(t *testing.T) {
