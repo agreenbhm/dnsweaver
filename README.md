@@ -33,6 +33,7 @@ dnsweaver watches Docker events, Kubernetes resources, and Proxmox VE clusters t
 |----------|--------------|-------|
 | [Technitium](https://maxfield-allison.github.io/dnsweaver/providers/technitium/) | A, AAAA, CNAME, SRV, TXT | Full-featured self-hosted DNS |
 | [Cloudflare](https://maxfield-allison.github.io/dnsweaver/providers/cloudflare/) | A, AAAA, CNAME, SRV, TXT | With optional proxy support |
+| [OVHcloud](https://maxfield-allison.github.io/dnsweaver/providers/ovh/) | A, AAAA, CNAME, SRV, TXT | Public DNS for OVH-hosted domains |
 | [RFC 2136](https://maxfield-allison.github.io/dnsweaver/providers/rfc2136/) | A, AAAA, CNAME, SRV, TXT | BIND, Windows DNS, PowerDNS, Knot |
 | [PowerDNS](https://maxfield-allison.github.io/dnsweaver/providers/powerdns/) | A, AAAA, CNAME, SRV, TXT | Native Authoritative HTTP API |
 | [Pi-hole](https://maxfield-allison.github.io/dnsweaver/providers/pihole/) | A, CNAME | API or file mode |
@@ -119,7 +120,7 @@ flowchart LR
 
 ### TLS Configuration
 
-Every HTTP-based provider (Technitium, AdGuard Home, Cloudflare, Pi-hole, Webhook) and the Proxmox source share a single TLS configuration surface:
+Every HTTP-based provider (Technitium, AdGuard Home, Cloudflare, OVHcloud, Pi-hole, Webhook) and the Proxmox source share a single TLS configuration surface:
 
 | Env key (per instance) | Purpose |
 |------------------------|---------|

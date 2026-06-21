@@ -17,6 +17,7 @@ import (
 	"github.com/maxfield-allison/dnsweaver/providers/adguard"
 	"github.com/maxfield-allison/dnsweaver/providers/cloudflare"
 	"github.com/maxfield-allison/dnsweaver/providers/dnsmasq"
+	"github.com/maxfield-allison/dnsweaver/providers/ovh"
 	"github.com/maxfield-allison/dnsweaver/providers/pihole"
 	"github.com/maxfield-allison/dnsweaver/providers/powerdns"
 	"github.com/maxfield-allison/dnsweaver/providers/rfc2136"
@@ -260,6 +261,9 @@ func registerProviderFactories(registry *provider.Registry) {
 
 	// Register AdGuard Home provider factory (local DNS via AdGuard Home API)
 	registry.RegisterFactory("adguard", adguard.Factory())
+
+	// Register OVHcloud provider factory (public DNS)
+	registry.RegisterFactory("ovh", ovh.Factory())
 }
 
 // initializeProviders initializes all configured providers using the manager.

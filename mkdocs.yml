@@ -127,6 +127,7 @@ nav:
       - providers/index.md
       - Technitium: providers/technitium.md
       - Cloudflare: providers/cloudflare.md
+      - OVHcloud: providers/ovh.md
       - RFC 2136: providers/rfc2136.md
       - PowerDNS: providers/powerdns.md
       - Pi-hole: providers/pihole.md
