@@ -7,7 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.6.0] - 2026-06-10
+## [2.0.0] - 2026-06-21
+
+This release contains no runtime behavior changes. It is a breaking release
+solely because the Go module path changed, which requires a major version bump
+under Semantic Versioning. It also re-architects the project's collaboration and
+release workflow.
+
+### Changed
+- **BREAKING: module path is now `github.com/maxfield-allison/dnsweaver`**
+  (previously a private GitLab path). Public consumers can now `go get` the
+  module by its declared path, and `pkg.go.dev` can resolve it. Anyone importing
+  the previous path must update their imports. No runtime behavior changed.
+
+### Infrastructure
+- **GitHub is now the source of truth and collaboration surface.** Issues, pull
+  requests, code review, and releases live on GitHub; the project follows GitHub
+  Flow with `main` as the always-releasable trunk. External contributions are
+  now possible — the previous GitLab→GitHub force-push mirror that clobbered
+  merges has been removed.
+- **Free PR validation on GitHub Actions** (`lint`, `test -race`, `build`,
+  `govulncheck`) runs on every pull request.
+- **GitLab remains the release engine**, building multi-arch images
+  (GHCR + Docker Hub) and publishing GitHub Releases on version tags. `main` and
+  tags are synced one-way GitHub→GitLab.
+- Removed the dead `advanced-git-sync` integration.
+
+
 
 ### Added
 - **SSH remote management for the dnsmasq provider is now functional**
