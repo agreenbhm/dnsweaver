@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 // RequireNoError fails the test immediately if err is not nil.

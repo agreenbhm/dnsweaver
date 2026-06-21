@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/httputil"
+	"github.com/maxfield-allison/dnsweaver/pkg/httputil"
 )
 
 // ovhRecord represents a DNS record as returned by the OVH API.

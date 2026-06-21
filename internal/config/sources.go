@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/source"
+	"github.com/maxfield-allison/dnsweaver/pkg/source"
 )
 
 // SourceInstanceConfig holds configuration for a single source instance.

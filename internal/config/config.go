@@ -14,7 +14,7 @@ import (
 	"log/slog"
 	"time"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/httputil"
+	"github.com/maxfield-allison/dnsweaver/pkg/httputil"
 )
 
 // Config holds the complete application configuration.

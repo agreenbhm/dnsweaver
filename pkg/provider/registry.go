@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.bluewillows.net/root/dnsweaver/internal/matcher"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/httputil"
+	"github.com/maxfield-allison/dnsweaver/internal/matcher"
+	"github.com/maxfield-allison/dnsweaver/pkg/httputil"
 )
 
 // HTTPConfig contains HTTP client configuration passed from the framework to providers.

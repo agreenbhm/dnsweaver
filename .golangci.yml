@@ -98,7 +98,7 @@ linters-settings:
       - commentedOutCode # Diagnostic but sometimes useful for documentation
 
   goimports:
-    local-prefixes: gitlab.bluewillows.net
+    local-prefixes: github.com/maxfield-allison/dnsweaver
 
   gosec:
     excludes:

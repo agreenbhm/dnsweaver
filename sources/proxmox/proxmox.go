@@ -26,8 +26,8 @@ import (
 	"log/slog"
 	"strings"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/source"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
+	"github.com/maxfield-allison/dnsweaver/pkg/source"
+	"github.com/maxfield-allison/dnsweaver/pkg/workload"
 )
 
 const sourceName = "proxmox"

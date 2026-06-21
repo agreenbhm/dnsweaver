@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
+	"github.com/maxfield-allison/dnsweaver/pkg/workload"
 )
 
 func TestDNSWeaver_Name(t *testing.T) {

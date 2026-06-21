@@ -8,7 +8,7 @@ import (
 	"net"
 	"testing"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/sshutil"
+	"github.com/maxfield-allison/dnsweaver/pkg/sshutil"
 )
 
 // recordingRunner is a CommandRunner that records the commands it was asked to run.

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 func testProvider(t *testing.T, serverURL string) *Provider {

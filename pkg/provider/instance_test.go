@@ -3,7 +3,7 @@ package provider
 import (
 	"testing"
 
-	"gitlab.bluewillows.net/root/dnsweaver/internal/matcher"
+	"github.com/maxfield-allison/dnsweaver/internal/matcher"
 )
 
 func TestIsIPAddress(t *testing.T) {

@@ -19,8 +19,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 
-	"gitlab.bluewillows.net/root/dnsweaver/internal/kubernetes/resources"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
+	"github.com/maxfield-allison/dnsweaver/internal/kubernetes/resources"
+	"github.com/maxfield-allison/dnsweaver/pkg/workload"
 )
 
 // ReconcileFunc is called when changes are detected that require reconciliation.

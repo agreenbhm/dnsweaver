@@ -66,7 +66,7 @@ import (
     "context"
     "testing"
 
-    "gitlab.bluewillows.net/root/dnsweaver/internal/testutil"
+    "github.com/maxfield-allison/dnsweaver/internal/testutil"
 )
 
 func TestList_RunningContainers(t *testing.T) {

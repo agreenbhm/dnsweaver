@@ -3,7 +3,7 @@ package docker
 import (
 	"testing"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
+	"github.com/maxfield-allison/dnsweaver/pkg/workload"
 )
 
 func TestWorkload_ToWorkload_Service(t *testing.T) {

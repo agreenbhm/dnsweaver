@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/source"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/source"
 )
 
 // ensureRecord creates DNS records for a hostname in all matching providers.

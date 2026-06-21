@@ -28,7 +28,7 @@ package source
 import (
 	"context"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
+	"github.com/maxfield-allison/dnsweaver/pkg/workload"
 )
 
 // Source defines the interface for hostname extraction from workloads

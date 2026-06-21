@@ -1,8 +1,8 @@
 package adguard
 
 import (
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/httputil"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/httputil"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 // Factory returns a provider.Factory for creating AdGuard Home provider instances.

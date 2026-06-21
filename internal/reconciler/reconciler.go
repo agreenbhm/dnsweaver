@@ -10,10 +10,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"gitlab.bluewillows.net/root/dnsweaver/internal/metrics"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/source"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
+	"github.com/maxfield-allison/dnsweaver/internal/metrics"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/source"
+	"github.com/maxfield-allison/dnsweaver/pkg/workload"
 )
 
 // Common error messages used in reconciliation actions.

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 func TestProvider_Interface(t *testing.T) {

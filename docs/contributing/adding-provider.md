@@ -175,7 +175,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 type Provider struct {
@@ -282,7 +282,7 @@ In `cmd/dnsweaver/main.go`:
 ```go
 import (
 	// ...
-	"gitlab.bluewillows.net/root/dnsweaver/providers/myprovider"
+	"github.com/maxfield-allison/dnsweaver/providers/myprovider"
 )
 
 func registerProviderFactories(registry *provider.Registry) {

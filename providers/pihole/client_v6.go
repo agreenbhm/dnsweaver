@@ -15,8 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/httputil"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/httputil"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 // V6APIClient implements DNSClient for Pi-hole v6's REST API.

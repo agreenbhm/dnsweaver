@@ -3,7 +3,7 @@ package testutil
 import (
 	"context"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
+	"github.com/maxfield-allison/dnsweaver/pkg/workload"
 )
 
 // MockWorkloadLister implements workload.Lister for testing.

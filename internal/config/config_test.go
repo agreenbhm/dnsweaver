@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 // clearAllEnv removes all DNSWEAVER_ environment variables for clean test state.

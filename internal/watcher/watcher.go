@@ -20,8 +20,8 @@ import (
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 
-	"gitlab.bluewillows.net/root/dnsweaver/internal/docker"
-	"gitlab.bluewillows.net/root/dnsweaver/internal/metrics"
+	"github.com/maxfield-allison/dnsweaver/internal/docker"
+	"github.com/maxfield-allison/dnsweaver/internal/metrics"
 )
 
 // ReconcileFunc is called when changes are detected that require reconciliation.
