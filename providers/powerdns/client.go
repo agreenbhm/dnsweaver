@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/httputil"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/httputil"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 // apiRecord is a single record entry within a PowerDNS rrset.
@@ -253,7 +253,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body io.Rea
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", provider.ErrProviderUnavailable, err)
+		return nil, fmt.Errorf("%w: %w", provider.ErrProviderUnavailable, err)
 	}
 	defer resp.Body.Close()
 

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
+	"github.com/maxfield-allison/dnsweaver/pkg/workload"
 )
 
 // mockDiscoverableSource implements Source with discovery support.

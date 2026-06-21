@@ -3,7 +3,7 @@ package powerdns
 import (
 	"testing"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 func TestFactory_CreatesProvider(t *testing.T) {

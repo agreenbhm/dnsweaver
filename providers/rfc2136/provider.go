@@ -7,8 +7,8 @@ import (
 	"math"
 	"strings"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/dnsupdate"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/dnsupdate"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 
 	"github.com/miekg/dns"
 )

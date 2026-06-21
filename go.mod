@@ -1,4 +1,4 @@
-module gitlab.bluewillows.net/root/dnsweaver
+module github.com/maxfield-allison/dnsweaver
 
 go 1.25.11
 

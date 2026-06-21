@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 func TestRecordCache_HasOwnershipRecord(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 	"testing"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/httputil"
+	"github.com/maxfield-allison/dnsweaver/pkg/httputil"
 )
 
 // TestRegistry_PropagatesTLSConfig is a regression test for the TLS hardening

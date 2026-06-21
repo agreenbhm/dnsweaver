@@ -34,7 +34,7 @@ import (
 	"net/http"
 	"time"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/httputil"
+	"github.com/maxfield-allison/dnsweaver/pkg/httputil"
 )
 
 // ClientConfig holds configuration for the Proxmox API client.

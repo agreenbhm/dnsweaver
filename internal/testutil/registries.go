@@ -3,9 +3,9 @@ package testutil
 import (
 	"log/slog"
 
-	"gitlab.bluewillows.net/root/dnsweaver/internal/matcher"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/source"
+	"github.com/maxfield-allison/dnsweaver/internal/matcher"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/source"
 )
 
 // MockProviderRegistry creates a provider registry pre-loaded with mock providers.

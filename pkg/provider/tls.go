@@ -3,7 +3,7 @@ package provider
 import (
 	"log/slog"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/httputil"
+	"github.com/maxfield-allison/dnsweaver/pkg/httputil"
 )
 
 // TLS-related keys lifted out of ProviderInstanceConfig.ProviderConfig and

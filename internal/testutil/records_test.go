@@ -3,8 +3,8 @@ package testutil_test
 import (
 	"testing"
 
-	"gitlab.bluewillows.net/root/dnsweaver/internal/testutil"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/internal/testutil"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 func TestRecordBuilders(t *testing.T) {

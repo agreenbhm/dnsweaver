@@ -63,7 +63,7 @@ import (
 
     "github.com/prometheus/client_golang/prometheus/testutil"
 
-    "gitlab.bluewillows.net/root/dnsweaver/internal/metrics"
+    "github.com/maxfield-allison/dnsweaver/internal/metrics"
 )
 
 func TestMetrics_ReconcileCounter(t *testing.T) {

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/source"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/source"
 )
 
 // loadFromFile loads configuration from a YAML file and converts it to runtime types.

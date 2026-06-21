@@ -17,7 +17,7 @@ import (
 	"os"
 	"testing"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 func itProvider(t *testing.T) (*Provider, string) {

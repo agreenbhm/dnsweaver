@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 // ProviderFactory is a function that creates a Provider instance for conformance testing.

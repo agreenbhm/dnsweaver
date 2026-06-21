@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 func TestCanonicalizeAndStrip(t *testing.T) {

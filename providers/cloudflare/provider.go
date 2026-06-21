@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"sync"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 // Provider implements provider.Provider for Cloudflare DNS.

@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/workload"
+	"github.com/maxfield-allison/dnsweaver/pkg/workload"
 )
 
 // mockSource implements Source for testing.

@@ -1,7 +1,7 @@
 package dnsmasq
 
 import (
-	"gitlab.bluewillows.net/root/dnsweaver/pkg/provider"
+	"github.com/maxfield-allison/dnsweaver/pkg/provider"
 )
 
 // Factory returns a provider.Factory for creating dnsmasq provider instances.
