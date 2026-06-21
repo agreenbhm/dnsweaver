@@ -54,8 +54,21 @@ jobs:
           git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@${GITLAB_HOST}/${GITLAB_PROJECT_PATH}.git"
 
           if [ "${GITHUB_REF}" != "${GITHUB_REF#refs/tags/}" ]; then
-            echo "Syncing tag ${GITHUB_REF_NAME} -> GitLab"
-            git push gitlab "${GITHUB_REF}:${GITHUB_REF}"
+            tag="${GITHUB_REF_NAME}"
+            local_sha="$(git rev-parse "${GITHUB_REF}")"
+            remote_sha="$(git ls-remote gitlab "refs/tags/${tag}" | cut -f1)"
+            if [ -z "${remote_sha}" ]; then
+              echo "Syncing tag ${tag} -> GitLab"
+              git push gitlab "refs/tags/${tag}:refs/tags/${tag}"
+            elif [ "${remote_sha}" = "${local_sha}" ]; then
+              # Tag already mirrored (e.g. pushed to both remotes during a
+              # release cut). Idempotent success — tags are immutable, so never
+              # force-overwrite them.
+              echo "Tag ${tag} already on GitLab at ${local_sha}; nothing to do."
+            else
+              echo "::error::Tag ${tag} exists on GitLab at ${remote_sha} but GitHub has ${local_sha}. Refusing to overwrite an existing tag."
+              exit 1
+            fi
           else
             echo "Syncing main -> GitLab"
             # Fetch the remote-tracking ref so --force-with-lease has a baseline.
