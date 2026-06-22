@@ -29,6 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Instances with no resolvable IP are skipped as a liveness gate. The source is
   auto-registered when an Incus endpoint is configured.
 
+### Fixed
+- **Documentation:** the landing-page "Supported Providers" table and the
+  testing record-type support matrix were missing the OVHcloud and PowerDNS
+  providers added in 2.1.0 (the matrix also omitted AdGuard Home). Both now
+  list all nine providers, matching the provider reference and `mkdocs` nav.
+
 ## [2.1.0] - 2026-06-21
 
 ### Added
