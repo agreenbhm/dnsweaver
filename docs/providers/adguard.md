@@ -189,6 +189,12 @@ AdGuard Home is often fronted by a reverse proxy with a private CA or self-signe
 
 The legacy `DNSWEAVER_ADGUARD_INSECURE_SKIP_VERIFY` variable still works but emits a deprecation warning and will be removed in v2.0. See the [environment reference](../configuration/environment.md) for complete recipes.
 
+!!! warning "Mounted certs must be readable by uid/gid 1000"
+    The container drops privileges to the unprivileged `dnsweaver` user, so a
+    client key mounted `root:root 0600` yields `permission denied`. See
+    [TLS Certificate File Permissions](../configuration/environment.md#tls-certificate-file-permissions).
+
+
 ## Troubleshooting
 
 ### Authentication Failed

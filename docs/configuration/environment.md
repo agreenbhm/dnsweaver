@@ -120,6 +120,74 @@ Replace `{NAME}` with your instance name. For example, instance `internal-dns` u
 | `DNSWEAVER_{NAME}_TLS_SKIP_VERIFY` | No | Skip TLS certificate verification (`true`/`false`, default: `false`). **Warning:** disables MITM protection — prefer `TLS_CA_FILE`. |
 | `DNSWEAVER_{NAME}_INSECURE_SKIP_VERIFY` | No | **Deprecated** — alias of `TLS_SKIP_VERIFY`. Will be removed in v2.0. |
 
+### TLS Certificate File Permissions
+
+The official container **drops privileges to an unprivileged user** (`dnsweaver`,
+uid/gid `1000`) before starting, even when you launch the container as root. The
+entrypoint needs root only briefly to auto-detect the Docker socket group, then
+hands off to uid `1000` via `su-exec`. The long-running process therefore reads
+your CA bundle, client certificate, and **private key as uid/gid 1000 — not as
+root and not as the host user that owns the files.**
+
+If a mounted key is owned `root:root` with mode `0600` (or `0640`), the process
+gets `permission denied` even though the file "looks" readable on the host:
+
+```text
+TLS configuration failed to build, falling back to stdlib defaults
+  error="loading TLS client keypair (cert=\"/etc/certs/cert.crt\" key=\"/etc/certs/key.pem\"):
+  open /etc/certs/key.pem: permission denied
+  (dnsweaver runs as uid=1000 gid=1000 after dropping privileges; the file must be
+  readable by that user — chown it to that uid/gid, make it group-readable, or mount
+  it as a Docker secret: .../#tls-certificate-file-permissions)"
+```
+
+Pick **one** of these fixes (do **not** `chmod 0666` a private key — that makes it
+world-readable inside the container, a real downgrade):
+
+=== "Chown to uid/gid 1000 (recommended)"
+
+    ```bash
+    sudo chown 1000:1000 cert.crt key.pem
+    sudo chmod 0644 cert.crt   # cert is public
+    sudo chmod 0600 key.pem    # key stays private, but now owned by uid 1000
+    ```
+
+=== "Group-readable"
+
+    ```bash
+    sudo chgrp 1000 key.pem
+    sudo chmod 0640 key.pem    # readable by gid 1000, still not world-readable
+    ```
+
+=== "Docker secrets (no chown needed)"
+
+    Files under `/run/secrets/` are readable by the in-container user by design,
+    so mounting certs as secrets sidesteps host ownership entirely:
+
+    ```yaml
+    services:
+      dnsweaver:
+        image: ghcr.io/maxfield-allison/dnsweaver:latest
+        environment:
+          - DNSWEAVER_TECHNITIUM_TLS_CERT_FILE=/run/secrets/dnsweaver_crt
+          - DNSWEAVER_TECHNITIUM_TLS_KEY_FILE=/run/secrets/dnsweaver_key
+        secrets:
+          - dnsweaver_crt
+          - dnsweaver_key
+    secrets:
+      dnsweaver_crt:
+        file: ./cert.crt
+      dnsweaver_key:
+        file: ./key.pem
+    ```
+
+!!! note "Kubernetes"
+    When the pod sets `securityContext.runAsUser`, certs projected from a
+    `Secret` volume are already readable by that user. Match the uid/gid you
+    run as, or rely on the default projected-secret mode (`0644`) for the cert
+    and a `defaultMode` of `0640` for the key with an `fsGroup` that the
+    container belongs to.
+
 ## Source Settings
 
 | Variable | Default | Description |

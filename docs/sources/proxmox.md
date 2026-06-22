@@ -296,6 +296,11 @@ DNSWEAVER_PROXMOX_TLS_CERT_FILE=/run/secrets/dnsweaver.crt
 DNSWEAVER_PROXMOX_TLS_KEY_FILE=/run/secrets/dnsweaver.key
 ```
 
+!!! warning "Mounted certs must be readable by uid/gid 1000"
+    The container drops privileges to the unprivileged `dnsweaver` user, so a
+    client key mounted `root:root 0600` yields `permission denied`. See
+    [TLS Certificate File Permissions](../configuration/environment.md#tls-certificate-file-permissions).
+
 As a last resort for self-signed certificates that cannot be provided as a CA
 bundle, you can disable verification entirely — this removes MITM protection
 and is **not recommended for production**:
