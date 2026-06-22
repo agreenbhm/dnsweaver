@@ -381,6 +381,73 @@ func (c *Config) ProxmoxTLS() *httputil.TLSConfig {
 	return &tls
 }
 
+// UseIncus returns true if Incus is configured (either a remote URL or a local
+// Unix socket path is set).
+func (c *Config) UseIncus() bool {
+	return c.Global.IncusURL != "" || c.Global.IncusSocketPath != ""
+}
+
+// IncusURL returns the remote Incus API base URL (empty for socket mode).
+func (c *Config) IncusURL() string {
+	return c.Global.IncusURL
+}
+
+// IncusSocketPath returns the local Incus Unix socket path (empty for remote mode).
+func (c *Config) IncusSocketPath() string {
+	return c.Global.IncusSocketPath
+}
+
+// IncusProject returns the Incus project to query. Empty string means use the
+// Incus default project.
+func (c *Config) IncusProject() string {
+	return c.Global.IncusProject
+}
+
+// IncusStateFilter returns the instance state filter (default: "running").
+func (c *Config) IncusStateFilter() string {
+	return c.Global.IncusStateFilter
+}
+
+// IncusDomainSuffix returns the domain suffix appended to instance names.
+func (c *Config) IncusDomainSuffix() string {
+	return c.Global.IncusDomainSuffix
+}
+
+// IncusTargetMode returns the configured target resolution mode
+// ("guest-ip" or "instance"). Empty string means use the default.
+func (c *Config) IncusTargetMode() string {
+	return c.Global.IncusTargetMode
+}
+
+// IncusTLS returns the unified TLS configuration for the remote Incus API
+// client. Returns nil when no DNSWEAVER_INCUS_TLS_* env vars are set — in that
+// case the client uses stdlib defaults (system roots, verification on, TLS 1.2
+// floor). Socket mode does not use TLS.
+func (c *Config) IncusTLS() *httputil.TLSConfig {
+	g := c.Global
+	tls := httputil.TLSConfig{
+		CAFile:       g.IncusTLSCAFile,
+		CertFile:     g.IncusTLSCertFile,
+		KeyFile:      g.IncusTLSKeyFile,
+		ServerName:   g.IncusTLSServerName,
+		InsecureSkip: g.IncusTLSSkipVerify,
+	}
+	if g.IncusTLSMinVersion != "" {
+		if parsed, err := httputil.ParseTLSMinVersion(g.IncusTLSMinVersion); err == nil {
+			tls.MinVersion = parsed
+		} else {
+			slog.Warn("ignoring invalid DNSWEAVER_INCUS_TLS_MIN_VERSION, using default",
+				slog.String("value", g.IncusTLSMinVersion),
+				slog.String("error", err.Error()),
+			)
+		}
+	}
+	if tls.IsZero() {
+		return nil
+	}
+	return &tls
+}
+
 // GetProviderInstance returns the configuration for a specific provider instance.
 func (c *Config) GetProviderInstance(name string) (*ProviderInstanceConfig, bool) {
 	for _, inst := range c.ProviderInstances {

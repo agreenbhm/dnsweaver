@@ -25,6 +25,7 @@ import (
 	"github.com/maxfield-allison/dnsweaver/providers/webhook"
 	"github.com/maxfield-allison/dnsweaver/sources/caddy"
 	dnsweaversource "github.com/maxfield-allison/dnsweaver/sources/dnsweaver"
+	incussource "github.com/maxfield-allison/dnsweaver/sources/incus"
 	k8ssource "github.com/maxfield-allison/dnsweaver/sources/kubernetes"
 	"github.com/maxfield-allison/dnsweaver/sources/nginxproxy"
 	proxmoxsource "github.com/maxfield-allison/dnsweaver/sources/proxmox"
@@ -161,6 +162,18 @@ func registerSources(registry *source.Registry, cfg *config.Config, logger *slog
 			logger.Info("registered source",
 				slog.String("name", name),
 			)
+		case "incus":
+			src := incussource.New(
+				incussource.WithDomain(cfg.IncusDomainSuffix()),
+				incussource.WithTargetMode(incusTargetMode(cfg)),
+				incussource.WithLogger(logger),
+			)
+			if err := registry.Register(src); err != nil {
+				return fmt.Errorf("registering incus source: %w", err)
+			}
+			logger.Info("registered source",
+				slog.String("name", name),
+			)
 		default:
 			logger.Warn("unknown source, skipping", slog.String("source", name))
 		}
@@ -196,6 +209,22 @@ func registerSources(registry *source.Registry, cfg *config.Config, logger *slog
 		}
 	}
 
+	// Auto-register incus source when Incus is enabled.
+	// Mirrors the Proxmox auto-registration pattern.
+	if cfg.UseIncus() {
+		if registry.Get("incus") == nil {
+			src := incussource.New(
+				incussource.WithDomain(cfg.IncusDomainSuffix()),
+				incussource.WithTargetMode(incusTargetMode(cfg)),
+				incussource.WithLogger(logger),
+			)
+			if err := registry.Register(src); err != nil {
+				return fmt.Errorf("registering incus source: %w", err)
+			}
+			logger.Info("auto-registered incus source for Incus platform")
+		}
+	}
+
 	return nil
 }
 
@@ -208,6 +237,26 @@ func proxmoxTargetMode(cfg *config.Config) proxmoxsource.TargetMode {
 		return proxmoxsource.TargetModeGuestIP
 	}
 	return mode
+}
+
+// incusTargetMode resolves the Incus target mode from config. Validation
+// happens during config load — this returns the default for any unrecognized
+// value to keep the source constructor strict-typed.
+func incusTargetMode(cfg *config.Config) incussource.TargetMode {
+	mode, err := incussource.ParseTargetMode(cfg.IncusTargetMode())
+	if err != nil {
+		return incussource.TargetModeGuestIP
+	}
+	return mode
+}
+
+// incusEndpoint returns a human-readable description of the configured Incus
+// endpoint (remote URL or local socket path) for logging.
+func incusEndpoint(cfg *config.Config) string {
+	if url := cfg.IncusURL(); url != "" {
+		return url
+	}
+	return "unix:" + cfg.IncusSocketPath()
 }
 
 // createTraefikSource creates a Traefik label parser with optional file discovery.

@@ -18,6 +18,7 @@ dnsweaver watches Docker events, Kubernetes resources, and Proxmox VE clusters t
 - 🐳 **Docker & Swarm** — Works with standalone Docker and Docker Swarm clusters
 - ☸️ **Kubernetes Native** — Watches Ingress, IngressRoute, HTTPRoute, and Service resources via Helm or Kustomize
 - 🖥️ **Proxmox VE** — Auto-creates A records for VMs (via QEMU guest agent) and LXC containers
+- 📦 **Incus** — Auto-creates A records for system containers and VMs via local socket or remote HTTPS
 - 🏗️ **Multi-Instance Safe** — Run multiple dnsweaver instances on the same DNS zone without conflicts
 - 🔒 **Socket Proxy Compatible** — Connect via TCP to a Docker socket proxy for improved security
 - 🛡️ **Hardened TLS** — Unified per-instance TLS controls (custom CA, mTLS client certs, SNI override, configurable min version; TLS 1.2 floor by default) for every HTTP-based provider and the Proxmox source
@@ -86,6 +87,7 @@ flowchart LR
     A["Docker / Swarm"] --> B["dnsweaver"]
     D["Kubernetes"] --> B
     P["Proxmox VE"] --> B
+    I["Incus"] --> B
     B --> C["DNS Providers<br/>(create / update / delete)"]
 ```
 
@@ -110,9 +112,10 @@ flowchart LR
 | [Getting Started](https://maxfield-allison.github.io/dnsweaver/getting-started/) | Installation and first configuration |
 | [Configuration](https://maxfield-allison.github.io/dnsweaver/configuration/environment/) | Environment variables reference |
 | [Providers](https://maxfield-allison.github.io/dnsweaver/providers/) | Provider-specific setup guides |
-| [Sources](https://maxfield-allison.github.io/dnsweaver/sources/) | Docker, Kubernetes, Proxmox, Traefik file sources |
+| [Sources](https://maxfield-allison.github.io/dnsweaver/sources/) | Docker, Kubernetes, Proxmox, Incus, Traefik file sources |
 | [Kubernetes](https://maxfield-allison.github.io/dnsweaver/deployment/kubernetes/) | Kubernetes deployment with Helm/Kustomize |
 | [Proxmox VE](https://maxfield-allison.github.io/dnsweaver/sources/proxmox/) | Auto-DNS for VMs and LXC containers |
+| [Incus](https://maxfield-allison.github.io/dnsweaver/sources/incus/) | Auto-DNS for system containers and VMs |
 | [Split-Horizon DNS](https://maxfield-allison.github.io/dnsweaver/deployment/split-horizon/) | Internal + external records |
 | [Docker Swarm](https://maxfield-allison.github.io/dnsweaver/deployment/swarm/) | Swarm deployment guide |
 | [Observability](https://maxfield-allison.github.io/dnsweaver/observability/) | Metrics, logging, and health checks |

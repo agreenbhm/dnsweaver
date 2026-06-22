@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Incus platform source** (`DNSWEAVER_SOURCES=incus`). Discovers running Incus
+  system containers and virtual machines and creates DNS `A` records mapping
+  each instance to its resolved IP address. Connects either to a local Unix
+  socket (`DNSWEAVER_INCUS_SOCKET_PATH`) or a remote HTTPS endpoint
+  (`DNSWEAVER_INCUS_URL`) secured with a client certificate — the two are
+  mutually exclusive. Per-source configuration:
+  - `DNSWEAVER_INCUS_PROJECT` — restrict discovery to a single Incus project.
+  - `DNSWEAVER_INCUS_STATE_FILTER` — instance status filter (default `running`).
+  - `DNSWEAVER_INCUS_DOMAIN_SUFFIX` — domain appended to instance names
+    (e.g. `webserver` → `webserver.home.example.com`).
+  - `DNSWEAVER_INCUS_TARGET_MODE` — `guest-ip` (default, A record per instance
+    IP) or `instance` (defer record type/target to the matching provider, for
+    CNAME-to-reverse-proxy setups).
+  - `DNSWEAVER_INCUS_TLS_*` — unified TLS surface (custom CA, mTLS client cert,
+    SNI override, configurable minimum version) for remote HTTPS access.
+
+  Hostname precedence: a `user.dnsweaver.hostname` instance config key (verbatim
+  override) > an instance name that is already an FQDN > `<name>.<domain>`.
+  Instances with no resolvable IP are skipped as a liveness gate. The source is
+  auto-registered when an Incus endpoint is configured.
+
 ### Fixed
 - **Documentation:** the landing-page "Supported Providers" table and the
   testing record-type support matrix were missing the OVHcloud and PowerDNS

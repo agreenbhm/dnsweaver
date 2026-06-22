@@ -1,12 +1,12 @@
 ---
 title: Sources
-description: How dnsweaver discovers hostnames from Docker containers, Kubernetes resources, and Proxmox VE workloads
+description: How dnsweaver discovers hostnames from Docker containers, Kubernetes resources, Proxmox VE, and Incus workloads
 icon: material/source-branch
 ---
 
 # Sources
 
-dnsweaver discovers hostnames to manage from multiple **sources**. Each source type extracts hostnames differently, allowing dnsweaver to work with existing reverse proxy configurations on Docker and Kubernetes, and with VMs and LXC containers on Proxmox VE.
+dnsweaver discovers hostnames to manage from multiple **sources**. Each source type extracts hostnames differently, allowing dnsweaver to work with existing reverse proxy configurations on Docker and Kubernetes, and with VMs and containers on Proxmox VE and Incus.
 
 ## Available Sources
 
@@ -76,6 +76,14 @@ dnsweaver discovers hostnames to manage from multiple **sources**. Each source t
 
     [:octicons-arrow-right-24: Proxmox](proxmox.md)
 
+-   :material-cube-outline:{ .lg .middle } **Incus**
+
+    ---
+
+    Discover Incus system containers and VMs over a local socket or remote HTTPS and create A records from instance names.
+
+    [:octicons-arrow-right-24: Incus](incus.md)
+
 </div>
 
 ## Source Priority
@@ -89,6 +97,7 @@ When multiple sources provide the same hostname, dnsweaver uses the following pr
 5. **Traefik files** (dynamic configuration)
 6. **Kubernetes** (resource spec hostnames)
 7. **Proxmox VE** (VM/LXC name + domain suffix)
+8. **Incus** (instance name + domain suffix)
 
 ## Hostname Extraction
 
@@ -104,6 +113,7 @@ Each source extracts hostnames differently:
 | Native | `dnsweaver.hostname` | `dnsweaver.hostname=app.example.com` |
 | Kubernetes | Resource spec fields | `.spec.rules[].host` (Ingress) |
 | Proxmox VE | VM/LXC name + domain suffix | `webserver` + `home.example.com` |
+| Incus | Instance name + domain suffix | `webserver` + `home.example.com` |
 
 !!! info "Multiple hostnames"
     Containers and Kubernetes resources can expose multiple hostnames. All discovered hostnames are processed independently and matched against configured provider domains.

@@ -102,6 +102,24 @@ type GlobalConfig struct {
 	ProxmoxTLSSkipVerify bool
 	ProxmoxTLSMinVersion string
 
+	// Incus settings
+	IncusURL          string // Remote Incus API base URL (e.g., https://incus.example.com:8443)
+	IncusSocketPath   string // Local Incus Unix socket path (e.g., /var/lib/incus/unix.socket)
+	IncusProject      string // Incus project to query (default: "default")
+	IncusStateFilter  string // Filter by instance status (default: "running")
+	IncusDomainSuffix string // Domain suffix to append to instance names (e.g., "home.example.com")
+	IncusTargetMode   string // Target resolution mode: "guest-ip" (default) or "instance"
+
+	// Unified Incus TLS configuration for remote HTTPS endpoints. Populated from
+	// DNSWEAVER_INCUS_TLS_* env vars and consumed by internal/incus via httputil.TLSConfig.
+	// Incus remote authentication uses a TLS client certificate/key pair.
+	IncusTLSCAFile     string
+	IncusTLSCertFile   string
+	IncusTLSKeyFile    string
+	IncusTLSServerName string
+	IncusTLSSkipVerify bool
+	IncusTLSMinVersion string
+
 	// Multi-instance coordination
 	InstanceID string // Unique identifier for this dnsweaver instance (for shared zone management)
 }
@@ -399,6 +417,46 @@ func loadGlobalConfig() (*GlobalConfig, []*ConfigError) {
 		slog.Warn("DNSWEAVER_PROXMOX_VERIFY_TLS is deprecated; use DNSWEAVER_PROXMOX_TLS_SKIP_VERIFY instead (legacy alias will be removed in v2.0)")
 		// Invert polarity: VERIFY_TLS=true → TLS_SKIP_VERIFY=false
 		cfg.ProxmoxTLSSkipVerify = !cfg.ProxmoxVerifyTLS
+	}
+
+	// Incus settings
+	cfg.IncusURL = getEnv("DNSWEAVER_INCUS_URL")
+	cfg.IncusSocketPath = getEnv("DNSWEAVER_INCUS_SOCKET_PATH")
+	cfg.IncusProject = getEnv("DNSWEAVER_INCUS_PROJECT")
+	cfg.IncusStateFilter = getEnv("DNSWEAVER_INCUS_STATE_FILTER")
+	cfg.IncusDomainSuffix = getEnv("DNSWEAVER_INCUS_DOMAIN_SUFFIX")
+	cfg.IncusTargetMode = getEnv("DNSWEAVER_INCUS_TARGET_MODE")
+	if cfg.IncusTargetMode != "" {
+		switch strings.ToLower(strings.TrimSpace(cfg.IncusTargetMode)) {
+		case "guest-ip", "instance":
+			// valid
+		default:
+			errs = append(errs, configErrFull(
+				"DNSWEAVER_INCUS_TARGET_MODE",
+				fmt.Sprintf("invalid value %q", cfg.IncusTargetMode),
+				"Must be one of: guest-ip (default, A record per guest IP), instance (defer to instance TARGET/RECORD_TYPE)",
+				"DNSWEAVER_INCUS_TARGET_MODE=instance",
+			))
+		}
+	}
+	if cfg.IncusURL != "" && cfg.IncusSocketPath != "" {
+		errs = append(errs, configErrFull(
+			"DNSWEAVER_INCUS_URL",
+			"both DNSWEAVER_INCUS_URL and DNSWEAVER_INCUS_SOCKET_PATH are set",
+			"Set exactly one: URL for a remote HTTPS endpoint, or SOCKET_PATH for the local Unix socket.",
+			"DNSWEAVER_INCUS_SOCKET_PATH=/var/lib/incus/unix.socket",
+		))
+	}
+
+	// Unified Incus TLS env vars for remote HTTPS endpoints. Remote Incus
+	// authentication uses a TLS client certificate/key pair (CERT_FILE/KEY_FILE).
+	cfg.IncusTLSCAFile = getEnv("DNSWEAVER_INCUS_TLS_CA_FILE")
+	cfg.IncusTLSCertFile = getEnv("DNSWEAVER_INCUS_TLS_CERT_FILE")
+	cfg.IncusTLSKeyFile = getEnv("DNSWEAVER_INCUS_TLS_KEY_FILE")
+	cfg.IncusTLSServerName = getEnv("DNSWEAVER_INCUS_TLS_SERVER_NAME")
+	cfg.IncusTLSMinVersion = getEnv("DNSWEAVER_INCUS_TLS_MIN_VERSION")
+	if v := getEnv("DNSWEAVER_INCUS_TLS_SKIP_VERIFY"); v != "" {
+		cfg.IncusTLSSkipVerify = parseBool(v, false)
 	}
 
 	return cfg, errs

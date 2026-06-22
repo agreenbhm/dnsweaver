@@ -20,6 +20,7 @@ import (
 	"github.com/maxfield-allison/dnsweaver/internal/config"
 	"github.com/maxfield-allison/dnsweaver/internal/docker"
 	"github.com/maxfield-allison/dnsweaver/internal/health"
+	incusclient "github.com/maxfield-allison/dnsweaver/internal/incus"
 	k8s "github.com/maxfield-allison/dnsweaver/internal/kubernetes"
 	"github.com/maxfield-allison/dnsweaver/internal/metrics"
 	proxmoxclient "github.com/maxfield-allison/dnsweaver/internal/proxmox"
@@ -304,8 +305,30 @@ func run() error {
 		)
 	}
 
+	// Initialize Incus lister when DNSWEAVER_INCUS_URL or _SOCKET_PATH is set.
+	if cfg.UseIncus() {
+		incusClient, err := incusclient.NewClient(incusclient.ClientConfig{
+			BaseURL:    cfg.IncusURL(),
+			SocketPath: cfg.IncusSocketPath(),
+			Project:    cfg.IncusProject(),
+			TLS:        cfg.IncusTLS(),
+			Logger:     logger,
+		})
+		if err != nil {
+			return fmt.Errorf("creating incus client: %w", err)
+		}
+		incusLister := incusclient.NewWorkloadListerAdapter(incusClient, incusclient.AdapterConfig{
+			StateFilter: cfg.IncusStateFilter(),
+		}, logger)
+		listers = append(listers, incusLister)
+		logger.Info("incus lister configured",
+			slog.String("endpoint", incusEndpoint(cfg)),
+			slog.String("project", cfg.IncusProject()),
+		)
+	}
+
 	if len(listers) == 0 {
-		return fmt.Errorf("no platform watchers configured: set DNSWEAVER_PLATFORM to docker, kubernetes, or both, or set DNSWEAVER_PROXMOX_URL for Proxmox VE")
+		return fmt.Errorf("no platform watchers configured: set DNSWEAVER_PLATFORM to docker, kubernetes, or both, set DNSWEAVER_PROXMOX_URL for Proxmox VE, or set DNSWEAVER_INCUS_URL/DNSWEAVER_INCUS_SOCKET_PATH for Incus")
 	}
 
 	rec := reconciler.New(listers, sourceRegistry, providerRegistry,

@@ -1,0 +1,268 @@
+---
+title: Incus Source
+description: Automatic DNS A record creation for Incus system containers and virtual machines
+icon: material/cube-outline
+---
+
+# Incus Source
+
+The Incus source creates DNS A records for running [Incus](https://linuxcontainers.org/incus/) system containers and virtual machines. It polls the Incus REST API to discover instances, resolves each instance's IP address from its network state, then registers an A record mapping `<instance-name>.<domain>` to that IP.
+
+It connects either to a **local Unix socket** (agent running on the Incus host) or to a **remote HTTPS endpoint** secured with a client certificate.
+
+## How It Works
+
+```mermaid
+flowchart LR
+    A["Incus API<br/>/1.0/instances?recursion=2"] -->|"Poll interval"| B["List containers / VMs"]
+    B -->|"Filter: state"| C["Resolve IP"]
+    C -->|"InstanceState.Network<br/>(first global inet addr)"| D["Hostname + IP"]
+    D --> E["Incus Source"]
+    E -->|"A record"| F["Reconciler → DNS"]
+```
+
+1. **Lister** polls `/1.0/instances?recursion=2` and applies the state filter
+2. **IP resolver** scans each instance's network interfaces, skipping loopback and non-routable addresses, and selects the first global IPv4 address
+3. **Source** maps the instance name + configured domain suffix to a fully-qualified hostname
+4. **Reconciler** creates or updates A records via the matching DNS provider
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Required | Default | Description |
+| :------- | :------- | :------ | :---------- |
+| `DNSWEAVER_INCUS_URL` | Alt | — | Remote Incus API base URL, e.g. `https://incus-host:8443`. Mutually exclusive with `DNSWEAVER_INCUS_SOCKET_PATH`. |
+| `DNSWEAVER_INCUS_SOCKET_PATH` | Alt | — | Path to the local Incus Unix socket, e.g. `/var/lib/incus/unix.socket`. Mutually exclusive with `DNSWEAVER_INCUS_URL`. |
+| `DNSWEAVER_INCUS_PROJECT` | No | _(all / default)_ | Restrict discovery to a single Incus project |
+| `DNSWEAVER_INCUS_STATE_FILTER` | No | `running` | Instance status filter (`running`, `stopped`, etc.) |
+| `DNSWEAVER_INCUS_DOMAIN_SUFFIX` | No | — | Domain suffix appended to instance names, e.g. `home.example.com` |
+| `DNSWEAVER_INCUS_TARGET_MODE` | No | `guest-ip` | Target resolution mode. `guest-ip` (default) emits an A record per instance IP. `instance` defers record type and target to the matching provider instance — useful for pointing all instances at a reverse proxy via CNAME. |
+| `DNSWEAVER_INCUS_TLS_CA_FILE` | No | — | Path to PEM CA bundle that issued the Incus server certificate (remote HTTPS). |
+| `DNSWEAVER_INCUS_TLS_CERT_FILE` | No | — | Client certificate for mutual TLS against the Incus API (pair with `TLS_KEY_FILE`). |
+| `DNSWEAVER_INCUS_TLS_KEY_FILE` | No | — | Client private key for mutual TLS. |
+| `DNSWEAVER_INCUS_TLS_SERVER_NAME` | No | — | SNI / verification hostname override. |
+| `DNSWEAVER_INCUS_TLS_MIN_VERSION` | No | `1.2` | Minimum TLS protocol version (`1.2` or `1.3`). |
+| `DNSWEAVER_INCUS_TLS_SKIP_VERIFY` | No | `false` | Skip Incus TLS certificate verification. Prefer `TLS_CA_FILE`. |
+
+!!! warning "Pick exactly one endpoint"
+    Set **either** `DNSWEAVER_INCUS_URL` (remote HTTPS) **or**
+    `DNSWEAVER_INCUS_SOCKET_PATH` (local socket) — never both. Setting both is a
+    configuration error and dnsweaver will refuse to start.
+
+### Source Registration
+
+Add `incus` to `DNSWEAVER_SOURCES`:
+
+```bash
+DNSWEAVER_SOURCES=incus
+```
+
+!!! tip "Auto-registration"
+    When `DNSWEAVER_INCUS_URL` or `DNSWEAVER_INCUS_SOCKET_PATH` is set, the Incus
+    source is **automatically registered** even if not listed in
+    `DNSWEAVER_SOURCES`. You only need to list it explicitly if you want to
+    control source ordering relative to other sources.
+
+## Hostname Resolution
+
+The source determines the DNS hostname for each instance using this logic, in order of precedence:
+
+1. **`user.dnsweaver.hostname` config key** — set on the instance, its value is used verbatim as the hostname (e.g. `incus config set web user.dnsweaver.hostname=app.example.net`)
+2. **Instance name contains a dot** — used directly as an FQDN (e.g., `db.home.example.com`)
+3. **Domain suffix configured** — appended to the instance name (e.g., `web` + `home.example.com` → `web.home.example.com`)
+4. **None of the above** — the instance is skipped; a debug log entry is emitted
+
+!!! warning "Domain suffix is strongly recommended"
+    Without a domain suffix, only instances whose names already contain a dot (or
+    that set `user.dnsweaver.hostname`) will produce DNS records. Set
+    `DNSWEAVER_INCUS_DOMAIN_SUFFIX` to ensure all instances are registered.
+
+### Per-instance hostname override
+
+Pin an arbitrary FQDN to any instance with a config key:
+
+```bash
+incus config set webserver user.dnsweaver.hostname=shop.example.com
+```
+
+This takes precedence over the derived `<name>.<domain>` hostname.
+
+## IP Address Resolution
+
+The resolver reads each instance's live network state (`InstanceState.Network`) and selects an address by:
+
+1. Sorting interface names for deterministic selection
+2. Skipping loopback interfaces (`lo`, `lo0`)
+3. Selecting the first **global** IPv4 (`inet`) address
+4. Skipping non-routable addresses (link-local, etc.)
+
+!!! note "Tailscale / CGNAT addresses are kept"
+    Addresses in the `100.64.0.0/10` CGNAT range (used by Tailscale) are treated
+    as valid targets, so Tailscale-connected instances resolve to their tailnet IP.
+
+Instances with no resolvable IP are skipped in **both** target modes — the IP existence acts as a liveness gate.
+
+## Target Mode
+
+`DNSWEAVER_INCUS_TARGET_MODE` controls what the source emits for each discovered instance:
+
+| Mode | Record Type | Target | Use Case |
+| :--- | :---------- | :----- | :------- |
+| `guest-ip` *(default)* | `A` | Instance's resolved IP | Direct DNS resolution to each container/VM |
+| `instance` | _from instance_ | _from instance_ | Point all Incus-discovered hostnames at a reverse proxy |
+
+In `instance` mode, the source emits the hostname only (no record-type or target hints).
+The matching provider instance's `RECORD_TYPE` and `TARGET` drive the resulting record,
+so a CNAME instance pointed at NPMplus / Traefik / Caddy will create CNAME records for
+every Incus instance that matches its `DOMAINS` filter.
+
+### Example: CNAME everything to a reverse proxy
+
+```bash
+DNSWEAVER_SOURCES=incus
+DNSWEAVER_INCUS_SOCKET_PATH=/var/lib/incus/unix.socket
+DNSWEAVER_INCUS_DOMAIN_SUFFIX=home.example.com
+DNSWEAVER_INCUS_TARGET_MODE=instance         # opt in
+
+DNSWEAVER_INSTANCES=npmplus
+DNSWEAVER_NPMPLUS_TYPE=technitium
+DNSWEAVER_NPMPLUS_RECORD_TYPE=CNAME
+DNSWEAVER_NPMPLUS_TARGET=npmplus.home.example.com   # all instances point here
+DNSWEAVER_NPMPLUS_DOMAINS=*.home.example.com
+DNSWEAVER_NPMPLUS_URL=https://technitium.home.example.com
+DNSWEAVER_NPMPLUS_TOKEN_FILE=/run/secrets/technitium_token
+```
+
+Every Incus instance matching `*.home.example.com` will get a CNAME pointing to
+`npmplus.home.example.com` instead of an A record pointing at the instance's own IP.
+
+## Remote HTTPS Access
+
+To reach Incus over the network, add a trust certificate to the Incus server and point dnsweaver at the API with a matching client certificate:
+
+```bash
+# On the Incus host: expose the API and trust dnsweaver's client cert
+incus config set core.https_address :8443
+incus config trust add-certificate dnsweaver.crt
+```
+
+Then configure dnsweaver:
+
+```bash
+DNSWEAVER_INCUS_URL=https://incus-host.home.example.com:8443
+DNSWEAVER_INCUS_TLS_CERT_FILE=/run/secrets/incus_client_cert
+DNSWEAVER_INCUS_TLS_KEY_FILE=/run/secrets/incus_client_key
+DNSWEAVER_INCUS_TLS_CA_FILE=/run/secrets/incus_server_ca
+```
+
+!!! tip "Local socket needs no TLS"
+    When using `DNSWEAVER_INCUS_SOCKET_PATH`, no TLS configuration is required —
+    access is governed by Unix socket file permissions. Mount the socket into the
+    container and ensure the dnsweaver process can read it.
+
+## Workload Metadata
+
+Each Incus instance is mapped to a workload with the following metadata:
+
+| Field | Value |
+| :---- | :---- |
+| `Platform` | `incus` |
+| `Kind` | `incus-container` or `incus-vm` |
+| `ID` / `Router` | `<project>/<instance-name>` |
+| Labels | The instance's `config` keys, verbatim (e.g. `user.dnsweaver.hostname`) |
+
+## Example: Docker Compose (local socket)
+
+```yaml
+services:
+  dnsweaver:
+    image: ghcr.io/maxfield-allison/dnsweaver:latest
+    environment:
+      DNSWEAVER_SOURCES: incus
+      DNSWEAVER_INCUS_SOCKET_PATH: /var/lib/incus/unix.socket
+      DNSWEAVER_INCUS_DOMAIN_SUFFIX: home.example.com
+    volumes:
+      # Mount the host's Incus socket read-only
+      - /var/lib/incus/unix.socket:/var/lib/incus/unix.socket:ro
+```
+
+## Example: Docker Compose (remote HTTPS)
+
+```yaml
+services:
+  dnsweaver:
+    image: ghcr.io/maxfield-allison/dnsweaver:latest
+    environment:
+      DNSWEAVER_SOURCES: incus
+      DNSWEAVER_INCUS_URL: https://incus-host.home.example.com:8443
+      DNSWEAVER_INCUS_TLS_CERT_FILE: /run/secrets/incus_client_cert
+      DNSWEAVER_INCUS_TLS_KEY_FILE: /run/secrets/incus_client_key
+      DNSWEAVER_INCUS_TLS_CA_FILE: /run/secrets/incus_server_ca
+      DNSWEAVER_INCUS_DOMAIN_SUFFIX: home.example.com
+    secrets:
+      - incus_client_cert
+      - incus_client_key
+      - incus_server_ca
+
+secrets:
+  incus_client_cert:
+    file: ./secrets/incus_client.crt
+  incus_client_key:
+    file: ./secrets/incus_client.key
+  incus_server_ca:
+    file: ./secrets/incus_server_ca.pem
+```
+
+## Example: Kubernetes Secret (remote HTTPS)
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dnsweaver-incus
+  namespace: dnsweaver
+type: Opaque
+stringData:
+  client.crt: |
+    -----BEGIN CERTIFICATE-----
+    ...
+  client.key: |
+    -----BEGIN PRIVATE KEY-----
+    ...
+  server-ca.pem: |
+    -----BEGIN CERTIFICATE-----
+    ...
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dnsweaver
+  namespace: dnsweaver
+spec:
+  template:
+    spec:
+      containers:
+        - name: dnsweaver
+          env:
+            - name: DNSWEAVER_SOURCES
+              value: incus
+            - name: DNSWEAVER_INCUS_URL
+              value: https://incus-host.home.example.com:8443
+            - name: DNSWEAVER_INCUS_TLS_CERT_FILE
+              value: /etc/dnsweaver/incus/client.crt
+            - name: DNSWEAVER_INCUS_TLS_KEY_FILE
+              value: /etc/dnsweaver/incus/client.key
+            - name: DNSWEAVER_INCUS_TLS_CA_FILE
+              value: /etc/dnsweaver/incus/server-ca.pem
+            - name: DNSWEAVER_INCUS_DOMAIN_SUFFIX
+              value: home.example.com
+          volumeMounts:
+            - name: incus-tls
+              mountPath: /etc/dnsweaver/incus
+              readOnly: true
+      volumes:
+        - name: incus-tls
+          secret:
+            secretName: dnsweaver-incus
+```
