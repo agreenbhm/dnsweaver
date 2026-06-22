@@ -45,6 +45,8 @@ const (
 	PlatformKubernetes Platform = "kubernetes"
 	// PlatformProxmox represents workloads from Proxmox VE (VMs and LXC containers).
 	PlatformProxmox Platform = "proxmox"
+	// PlatformIncus represents workloads from Incus (system containers and VMs).
+	PlatformIncus Platform = "incus"
 	// PlatformStatic represents workloads from static file configuration.
 	PlatformStatic Platform = "static"
 )
@@ -57,6 +59,11 @@ func (p Platform) String() string {
 // IsProxmox returns true if the platform is Proxmox VE.
 func (p Platform) IsProxmox() bool {
 	return p == PlatformProxmox
+}
+
+// IsIncus returns true if the platform is Incus.
+func (p Platform) IsIncus() bool {
+	return p == PlatformIncus
 }
 
 // Kind identifies the specific resource type within a platform.
@@ -89,6 +96,13 @@ const (
 	KindVM Kind = "vm"
 	// KindLXC represents a Proxmox LXC container.
 	KindLXC Kind = "lxc"
+
+	// Incus kinds.
+
+	// KindIncusContainer represents an Incus system container.
+	KindIncusContainer Kind = "incus-container"
+	// KindIncusVM represents an Incus virtual machine.
+	KindIncusVM Kind = "incus-vm"
 )
 
 // String returns the string representation of the kind.
