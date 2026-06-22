@@ -47,6 +47,14 @@ dnsweaver watches Docker events, Kubernetes resources, and Proxmox VE clusters t
 
     [:octicons-arrow-right-24: Proxmox Source](sources/proxmox.md)
 
+-   :material-cube-outline:{ .lg .middle } **Incus**
+
+    ---
+
+    Auto-creates A records for Incus system containers and VMs over a local socket or remote HTTPS.
+
+    [:octicons-arrow-right-24: Incus Source](sources/incus.md)
+
 -   :material-chart-line:{ .lg .middle } **Observable**
 
     ---
@@ -64,6 +72,7 @@ flowchart LR
     A["Docker / Swarm"] --> B["dnsweaver"]
     D["Kubernetes"] --> B
     P["Proxmox VE"] --> B
+    I["Incus"] --> B
     B --> C["DNS Providers<br/>(create / update / delete)"]
 ```
 
@@ -126,6 +135,23 @@ flowchart LR
         - **A record**: `myvm.home.example.com → 192.0.2.10`
 
     4. When the VM or LXC is stopped or deleted, the DNS record is automatically cleaned up
+
+=== "Incus"
+
+    1. An Incus system container or VM is running with a resolvable IP:
+
+        ```bash
+        # Example: incus launch images:debian/12 myinstance # (1)!
+        ```
+
+        1. dnsweaver polls the Incus API (local socket or remote HTTPS) and discovers instances via their network state
+
+    2. dnsweaver extracts the instance hostname and IP, then matches against configured provider domain patterns
+
+    3. The matching provider creates the DNS record:
+        - **A record**: `myinstance.home.example.com → 192.0.2.20`
+
+    4. When the instance is stopped or deleted, the DNS record is automatically cleaned up
 
 ## Quick Start
 
@@ -205,6 +231,7 @@ flowchart LR
 | Docker support | :material-check: | :material-close: | :material-check: |
 | Kubernetes support | :material-check: | :material-check: | :material-close: |
 | Proxmox VE support | :material-check: | :material-close: | :material-close: |
+| Incus support | :material-check: | :material-close: | :material-close: |
 | Multiple providers | :material-check: | :material-close: | :material-close: |
 | Split-horizon DNS | :material-check: | :material-close: | :material-close: |
 | Self-hosted DNS focus | :material-check: | :material-close: | :material-close: |
