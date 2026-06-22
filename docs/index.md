@@ -188,7 +188,9 @@ flowchart LR
 | :------- | :----------- | :---- |
 | [Technitium](providers/technitium.md) | A, AAAA, CNAME, SRV, TXT | Full-featured self-hosted DNS |
 | [Cloudflare](providers/cloudflare.md) | A, AAAA, CNAME, SRV, TXT | With optional proxy support |
+| [OVHcloud](providers/ovh.md) | A, AAAA, CNAME, SRV, TXT | Public DNS for OVH-hosted domains |
 | [RFC 2136](providers/rfc2136.md) | A, AAAA, CNAME, SRV, TXT | BIND, Windows DNS, PowerDNS, Knot |
+| [PowerDNS](providers/powerdns.md) | A, AAAA, CNAME, SRV, TXT | Native Authoritative HTTP API |
 | [Pi-hole](providers/pihole.md) | A, CNAME | API or file mode |
 | [AdGuard Home](providers/adguard.md) | A, AAAA, CNAME | DNS rewrite management |
 | [dnsmasq](providers/dnsmasq.md) | A, CNAME | File-based configuration |
