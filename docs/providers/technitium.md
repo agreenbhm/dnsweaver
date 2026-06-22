@@ -159,6 +159,12 @@ For mutual-TLS (server requires a client cert):
 - DNSWEAVER_TECHNITIUM_TLS_KEY_FILE=/run/secrets/dnsweaver.key
 ```
 
+!!! warning "Mounted certs must be readable by uid/gid 1000"
+    The container drops privileges to the unprivileged `dnsweaver` user. A key
+    mounted `root:root 0600` produces `permission denied`. Mounting via
+    `/run/secrets/` (as above) avoids this; for bind-mounts, see
+    [TLS Certificate File Permissions](../configuration/environment.md#tls-certificate-file-permissions).
+
 If the server's certificate CN/SAN differs from the URL host (e.g. you connect
 by IP but the cert is issued for a hostname), set an SNI override:
 

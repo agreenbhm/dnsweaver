@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **TLS file permission errors now name the runtime uid/gid.** The container
+  drops privileges to the unprivileged `dnsweaver` user (uid/gid `1000`) via
+  `su-exec`, so a CA bundle, client certificate, or private key mounted
+  `root:root 0600` fails with `permission denied` even when the container is
+  started as root. The error message now reports the uid/gid the process
+  actually runs as and points at the fix, so operators no longer burn time
+  thinking "but I AM root." ([#90](https://github.com/maxfield-allison/dnsweaver/issues/90))
+
+### Documentation
+- Added a **TLS Certificate File Permissions** section to the environment
+  reference (chown / group-readable / Docker secrets recipes), linked from the
+  README TLS section and every provider's mTLS example (Technitium, AdGuard,
+  Cloudflare, Pi-hole, Webhook) plus the Proxmox source. ([#90](https://github.com/maxfield-allison/dnsweaver/issues/90))
+
 ## [2.2.0] - 2026-06-22
 
 ### Added

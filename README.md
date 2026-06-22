@@ -135,6 +135,9 @@ Every HTTP-based provider (Technitium, AdGuard Home, Cloudflare, OVHcloud, Power
 
 The Proxmox source uses the same keys under `DNSWEAVER_PROXMOX_TLS_*`. The legacy `*_INSECURE_SKIP_VERIFY` and `DNSWEAVER_PROXMOX_VERIFY_TLS` variables are still accepted but emit a deprecation warning at startup — migrate to the unified `TLS_SKIP_VERIFY` keys. See the [Environment Reference](https://maxfield-allison.github.io/dnsweaver/configuration/environment/) and [SECURITY.md](SECURITY.md) for full details and recipes.
 
+> **Mounting certs?** The container drops privileges to uid/gid `1000`, so cert/key files must be readable by that user — a `root:root 0600` key yields `permission denied`. See [TLS Certificate File Permissions](https://maxfield-allison.github.io/dnsweaver/configuration/environment/#tls-certificate-file-permissions).
+
+
 ## Kubernetes Quick Start
 
 Deploy dnsweaver to watch Kubernetes resources for DNS management:

@@ -9,13 +9,17 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
+	"fmt"
 	"io"
+	"io/fs"
 	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -300,5 +304,65 @@ func TestNewClient_TLSSkipVerify_PreservesTransportClone(t *testing.T) {
 	}
 	if tr.MaxIdleConns == 0 {
 		t.Error("MaxIdleConns is zero — transport was not cloned from DefaultTransport")
+	}
+}
+
+// TestPermissionHint verifies that a permission-denied file error is annotated
+// with the uid/gid the process actually runs as. This is the user-facing half
+// of the fix for issue #90: the container drops privileges to the unprivileged
+// dnsweaver user, so "permission denied" on a root-owned cert/key needs to spell
+// out the runtime uid/gid or operators waste time thinking "but I AM root."
+func TestPermissionHint(t *testing.T) {
+	// A wrapped fs.ErrPermission gets the uid/gid annotation while preserving
+	// the original error chain.
+	base := fmt.Errorf("open /etc/certs/key.pem: %w", fs.ErrPermission)
+	got := permissionHint(base)
+	if got == nil {
+		t.Fatal("expected non-nil error")
+	}
+	msg := got.Error()
+	if !strings.Contains(msg, fmt.Sprintf("uid=%d", os.Getuid())) {
+		t.Errorf("hint missing runtime uid: %q", msg)
+	}
+	if !strings.Contains(msg, fmt.Sprintf("gid=%d", os.Getgid())) {
+		t.Errorf("hint missing runtime gid: %q", msg)
+	}
+	if !errors.Is(got, fs.ErrPermission) {
+		t.Error("permissionHint must preserve the wrapped error for errors.Is")
+	}
+
+	// Non-permission errors pass through untouched (identity).
+	other := errors.New("some other failure")
+	if permissionHint(other) != other { //nolint:errorlint // identity check is intentional
+		t.Error("non-permission error should pass through unchanged")
+	}
+
+	// nil stays nil.
+	if permissionHint(nil) != nil {
+		t.Error("nil should pass through unchanged")
+	}
+}
+
+// TestTLSConfig_Build_KeyPermissionDenied is an end-to-end check that Build()
+// routes the keypair load error through permissionHint. Skipped when running as
+// root, which can read 0000-mode files and would never hit the permission path.
+func TestTLSConfig_Build_KeyPermissionDenied(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("running as root: cannot reproduce a permission-denied read")
+	}
+	certPEM, keyPEM, _, _ := genCert(t, []string{"x"}, true)
+	dir := t.TempDir()
+	certPath := writeTemp(t, dir, "c.crt", certPEM)
+	keyPath := writeTemp(t, dir, "c.key", keyPEM)
+	if err := os.Chmod(keyPath, 0o000); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+
+	_, err := (&TLSConfig{CertFile: certPath, KeyFile: keyPath}).Build()
+	if err == nil {
+		t.Fatal("expected a permission error loading an unreadable key")
+	}
+	if !strings.Contains(err.Error(), fmt.Sprintf("uid=%d", os.Getuid())) {
+		t.Errorf("Build error not annotated with uid: %q", err.Error())
 	}
 }

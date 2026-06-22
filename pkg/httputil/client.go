@@ -4,8 +4,10 @@ package httputil
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -105,7 +107,7 @@ func (t TLSConfig) Build() (*tls.Config, error) {
 	if t.CAFile != "" {
 		pem, err := os.ReadFile(t.CAFile)
 		if err != nil {
-			return nil, fmt.Errorf("reading TLS CA file %q: %w", t.CAFile, err)
+			return nil, permissionHint(fmt.Errorf("reading TLS CA file %q: %w", t.CAFile, err))
 		}
 		// Clone the system pool so we add to system trust rather than
 		// replacing it. SystemCertPool may fail on platforms without a
@@ -130,12 +132,33 @@ func (t TLSConfig) Build() (*tls.Config, error) {
 	if certSet {
 		cert, err := tls.LoadX509KeyPair(t.CertFile, t.KeyFile)
 		if err != nil {
-			return nil, fmt.Errorf("loading TLS client keypair (cert=%q key=%q): %w", t.CertFile, t.KeyFile, err)
+			return nil, permissionHint(fmt.Errorf("loading TLS client keypair (cert=%q key=%q): %w", t.CertFile, t.KeyFile, err))
 		}
 		out.Certificates = []tls.Certificate{cert}
 	}
 
 	return out, nil
+}
+
+// permissionHint augments a file-access error with the uid/gid the process is
+// actually running as. The container entrypoint drops privileges to the
+// unprivileged "dnsweaver" user (uid/gid 1000) via su-exec even when the
+// container is started as root, so a "permission denied" on a cert/key mounted
+// root:root 0600 is a common and confusing failure: the operator sees root on
+// the host but the binary is not root inside the container. The hint points at
+// the actual runtime uid/gid and the docs so the fix (chown to that uid/gid, or
+// make the file group-readable, or use Docker secrets) is obvious.
+//
+// Returns the error unchanged when it is nil or not a permission error.
+func permissionHint(err error) error {
+	if err == nil || !errors.Is(err, fs.ErrPermission) {
+		return err
+	}
+	return fmt.Errorf("%w (dnsweaver runs as uid=%d gid=%d after dropping privileges; "+
+		"the file must be readable by that user — chown it to that uid/gid, make it group-readable, "+
+		"or mount it as a Docker secret: "+
+		"https://maxfield-allison.github.io/dnsweaver/configuration/environment/#tls-certificate-file-permissions)",
+		err, os.Getuid(), os.Getgid())
 }
 
 // ParseTLSMinVersion converts a user-facing version string (e.g. "1.2", "1.3",
