@@ -55,18 +55,28 @@ jobs:
 
           if [ "${GITHUB_REF}" != "${GITHUB_REF#refs/tags/}" ]; then
             tag="${GITHUB_REF_NAME}"
-            local_sha="$(git rev-parse "${GITHUB_REF}")"
-            remote_sha="$(git ls-remote gitlab "refs/tags/${tag}" | cut -f1)"
-            if [ -z "${remote_sha}" ]; then
+            # Peel both sides to the commit they reference. The runner's local
+            # tag ref (written by actions/checkout) is typically lightweight and
+            # resolves straight to the commit, whereas an annotated tag on GitLab
+            # has a distinct tag-object SHA. Comparing raw SHAs would therefore
+            # always mismatch for annotated tags; comparing peeled commits is the
+            # correct immutability check.
+            local_commit="$(git rev-parse "${GITHUB_REF}^{commit}")"
+            remote_object="$(git ls-remote gitlab "refs/tags/${tag}" | cut -f1)"
+            remote_commit="$(git ls-remote gitlab "refs/tags/${tag}^{}" | cut -f1)"
+            # Lightweight remote tags have no peeled (^{}) entry; fall back to the
+            # object SHA, which is the commit itself in that case.
+            remote_commit="${remote_commit:-$remote_object}"
+            if [ -z "${remote_object}" ]; then
               echo "Syncing tag ${tag} -> GitLab"
               git push gitlab "refs/tags/${tag}:refs/tags/${tag}"
-            elif [ "${remote_sha}" = "${local_sha}" ]; then
+            elif [ "${remote_commit}" = "${local_commit}" ]; then
               # Tag already mirrored (e.g. pushed to both remotes during a
               # release cut). Idempotent success — tags are immutable, so never
               # force-overwrite them.
-              echo "Tag ${tag} already on GitLab at ${local_sha}; nothing to do."
+              echo "Tag ${tag} already on GitLab pointing at ${local_commit}; nothing to do."
             else
-              echo "::error::Tag ${tag} exists on GitLab at ${remote_sha} but GitHub has ${local_sha}. Refusing to overwrite an existing tag."
+              echo "::error::Tag ${tag} exists on GitLab at commit ${remote_commit} but GitHub has ${local_commit}. Refusing to overwrite an existing tag."
               exit 1
             fi
           else
