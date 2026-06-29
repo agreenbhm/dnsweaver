@@ -89,9 +89,13 @@ jobs:
           # passes when ONLY known-unfixed vulnerabilities are present and
           # fails on anything new. Mirrors the GitLab security:govulncheck job.
           # Known unfixed (github.com/docker/docker SDK — no fix in v28.x):
-          #   GO-2026-4887, GO-2026-4883 (Moby daemon vulns, not reachable via
-          #   the client SDK paths dnsweaver uses).
-          KNOWN_VULNS="GO-2026-4887|GO-2026-4883"
+          #   GO-2026-4883, GO-2026-4887, GO-2026-5617, GO-2026-5668,
+          #   GO-2026-5746 — Moby daemon vulns (docker cp, container archive,
+          #   plugin/AuthZ). dnsweaver uses the SDK only as a read-only client
+          #   and runs no daemon, so these paths are unreachable. No stable fix
+          #   in the docker/docker +incompatible module (v29 is pre-release
+          #   moby/v2). Tracked/dismissed in GitHub Dependabot.
+          KNOWN_VULNS="GO-2026-4883|GO-2026-4887|GO-2026-5617|GO-2026-5668|GO-2026-5746"
           RC=0
           govulncheck ./... > govulncheck.txt 2>&1 || RC=$?
           cat govulncheck.txt
