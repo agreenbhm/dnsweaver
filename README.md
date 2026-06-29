@@ -1,5 +1,6 @@
 # dnsweaver
 
+[![CI](https://img.shields.io/github/actions/workflow/status/maxfield-allison/dnsweaver/ci.yml?branch=main&style=flat-square)](https://github.com/maxfield-allison/dnsweaver/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/maxfield-allison/dnsweaver?style=flat-square)](https://github.com/maxfield-allison/dnsweaver/releases)
 [![Docker Pulls](https://img.shields.io/docker/pulls/maxamill/dnsweaver?style=flat-square)](https://hub.docker.com/r/maxamill/dnsweaver)
 [![License](https://img.shields.io/github/license/maxfield-allison/dnsweaver?style=flat-square)](LICENSE)

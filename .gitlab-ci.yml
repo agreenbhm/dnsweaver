@@ -120,11 +120,14 @@ security:govulncheck:
     # Known unfixed (docker/docker v28.5.2 — no fix for github.com/docker/docker module):
     #   GO-2026-4887 - Moby AuthZ plugin bypass (oversized request bodies)
     #   GO-2026-4883 - Moby off-by-one plugin privilege validation
+    #   GO-2026-5617 - Moby docker cp arbitrary empty files via symlink swap
+    #   GO-2026-5668 - Moby docker cp bind mount redirection to host path
+    #   GO-2026-5746 - Moby PUT /containers/{id}/archive host binary execution
     # Risk: Low — DNSweaver uses client SDK only (container/swarm listing, events).
     # These are Docker daemon vulns; not exploitable via client library imports.
     # Fix exists only in moby/moby/v2 (beta). Review when v2 reaches stable.
     - |
-      KNOWN_VULNS="GO-2026-4887|GO-2026-4883"
+      KNOWN_VULNS="GO-2026-4887|GO-2026-4883|GO-2026-5617|GO-2026-5668|GO-2026-5746"
       RC=0
       govulncheck ./... > govulncheck.txt 2>&1 || RC=$?
       cat govulncheck.txt
