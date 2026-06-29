@@ -1,0 +1,82 @@
+name: Bug Report
+description: Report a problem with dnsweaver so it can be fixed.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. Please fill out the
+        sections below so the issue can be reproduced and triaged quickly.
+        For security vulnerabilities, do **not** use this form — see the
+        [security policy](https://github.com/maxfield-allison/dnsweaver/security/policy).
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I searched existing issues and discussions for duplicates.
+          required: true
+        - label: I am running the latest release (or a recent main build).
+          required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: A clear, concise description of the bug.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: How can someone else reproduce the problem?
+      placeholder: |
+        1. Configure provider ...
+        2. Start a container with labels ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual behavior
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: dnsweaver version
+      placeholder: "v2.2.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform / source
+      multiple: true
+      options:
+        - Docker
+        - Docker Swarm
+        - Kubernetes
+        - Proxmox VE
+        - Incus
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: DNS provider(s)
+      placeholder: "Technitium, Pi-hole, Cloudflare, RFC2136, ..."
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant configuration
+      description: Sanitized config or labels (remove tokens/secrets).
+      render: yaml
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Structured logs around the failure (remove sensitive data).
+      render: text
