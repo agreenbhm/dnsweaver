@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-07-04
+
+Minor release adding the OPNsense DNS provider and a standalone platform mode for
+running dnsweaver without Docker or Kubernetes.
+
 ### Added
 - **Standalone platform mode** (`DNSWEAVER_PLATFORM=none`, alias `standalone`).
   dnsweaver can now run as a bare binary on a host, VM, or LXC with no Docker or
