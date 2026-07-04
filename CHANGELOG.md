@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-07-03
+
+Patch release rolling up TLS diagnostics, RFC 2136 TTL hardening, a Go toolchain
++ dependency bump for CVE coverage, docs/SEO polish, and the sync-workflow tag
+idempotency fix. No new features and no breaking changes.
+
 ### Changed
 - **TLS file permission errors now name the runtime uid/gid.** The container
   drops privileges to the unprivileged `dnsweaver` user (uid/gid `1000`) via
@@ -14,13 +20,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `root:root 0600` fails with `permission denied` even when the container is
   started as root. The error message now reports the uid/gid the process
   actually runs as and points at the fix, so operators no longer burn time
-  thinking "but I AM root." ([#90](https://github.com/maxfield-allison/dnsweaver/issues/90))
+  thinking "but I AM root."
+  ([#90](https://github.com/maxfield-allison/dnsweaver/issues/90),
+  [#98](https://github.com/maxfield-allison/dnsweaver/pull/98))
+- **Go toolchain pinned to 1.26.4** (from 1.25.11). `k8s.io/{apimachinery,
+  client-go}` 0.36 requires Go 1.26; pinning the patch release pulls in the
+  standard-library fixes for 13 CVEs present in 1.26.0 (`crypto/x509`,
+  `crypto/tls`, `net/http`, `net/url`, `os`, `mime`, `net/textproto`), keeping
+  `govulncheck` green.
+  ([#109](https://github.com/maxfield-allison/dnsweaver/pull/109))
+
+### Fixed
+- **RFC 2136 record TTL conversion is now clamped on both bounds.**
+  `record.TTL` is a platform `int` that can exceed `uint32` or be negative;
+  the existing conversion clamped the upper bound only, so a negative TTL
+  would wrap to a large `uint32`. TTLs are now clamped through an explicit
+  `clampTTL` helper (`v<0 → 0`, `v>MaxUint32 → MaxUint32`) that CodeQL
+  recognizes as a bounds check, closing the
+  `go/incorrect-integer-conversion` alert without relying on Go's `min`/`max`
+  builtins.
+  ([#108](https://github.com/maxfield-allison/dnsweaver/pull/108),
+  [#110](https://github.com/maxfield-allison/dnsweaver/pull/110))
+- **GitHub→GitLab tag sync no longer creates spurious "tag differs" pipelines.**
+  The sync workflow now compares peeled commit SHAs when checking whether an
+  existing tag matches, so annotated tags (which point at a tag object, not a
+  commit) are treated as equivalent to their commit-pointing counterparts.
+  ([#97](https://github.com/maxfield-allison/dnsweaver/pull/97))
+
+### Dependencies
+- Bumped the `go-dependencies` group:
+  `golang.org/x/crypto` 0.52.0 → 0.53.0, `k8s.io/apimachinery` and
+  `k8s.io/client-go` 0.35.2 → 0.36.2.
+  ([#109](https://github.com/maxfield-allison/dnsweaver/pull/109))
+- Bumped GitHub Actions to current majors:
+  `actions/setup-go` 5→6 ([#101](https://github.com/maxfield-allison/dnsweaver/pull/101)),
+  `actions/configure-pages` 4→6 ([#102](https://github.com/maxfield-allison/dnsweaver/pull/102)),
+  `github/codeql-action` 3→4 ([#103](https://github.com/maxfield-allison/dnsweaver/pull/103)),
+  `actions/setup-python` 5→6 ([#104](https://github.com/maxfield-allison/dnsweaver/pull/104)),
+  `actions/checkout` 4→7 ([#105](https://github.com/maxfield-allison/dnsweaver/pull/105)),
+  `actions/upload-pages-artifact` 3→5 ([#111](https://github.com/maxfield-allison/dnsweaver/pull/111)),
+  `actions/deploy-pages` 4→5 ([#112](https://github.com/maxfield-allison/dnsweaver/pull/112)).
 
 ### Documentation
 - Added a **TLS Certificate File Permissions** section to the environment
   reference (chown / group-readable / Docker secrets recipes), linked from the
   README TLS section and every provider's mTLS example (Technitium, AdGuard,
-  Cloudflare, Pi-hole, Webhook) plus the Proxmox source. ([#90](https://github.com/maxfield-allison/dnsweaver/issues/90))
+  Cloudflare, Pi-hole, Webhook) plus the Proxmox source.
+  ([#90](https://github.com/maxfield-allison/dnsweaver/issues/90))
+- **Discoverability & SEO pass:** added a "Why dnsweaver?" positioning section
+  and a Star History chart to the README, published a Docker Hub overview
+  (`docker/DOCKERHUB.md`) with a CI job that pushes it to Docker Hub's
+  `full_description` on release, and added SEO meta descriptions to provider,
+  source, deployment, and getting-started pages (coverage went from 10/46 to
+  every high-intent page).
+  ([#107](https://github.com/maxfield-allison/dnsweaver/pull/107))
+
+### Repository
+- Community-health scaffolding: `CODE_OF_CONDUCT.md`, issue and PR templates,
+  Dependabot config for Go / GitHub Actions / Docker, CodeQL analysis workflow,
+  and a CI status badge in the README.
+  ([#100](https://github.com/maxfield-allison/dnsweaver/pull/100))
 
 ## [2.2.0] - 2026-06-22
 
