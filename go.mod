@@ -4,6 +4,7 @@ go 1.26.5
 
 require (
 	github.com/BurntSushi/toml v1.6.0
+	github.com/coder/websocket v1.8.15
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/miekg/dns v1.1.72
 	github.com/pkg/sftp v1.13.10
