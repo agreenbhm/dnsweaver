@@ -6,7 +6,7 @@ icon: material/cube-outline
 
 # Incus Source
 
-The Incus source creates DNS A records for running [Incus](https://linuxcontainers.org/incus/) system containers and virtual machines. It polls the Incus REST API to discover instances, resolves each instance's IP address from its network state, then registers an A record mapping `<instance-name>.<domain>` to that IP.
+The Incus source creates DNS A records for running [Incus](https://linuxcontainers.org/incus/) system containers and virtual machines. It polls the Incus REST API to discover instances, resolves each instance's IP address from its network state, then registers an A record mapping `<instance-name>.<domain>` to that IP. It also subscribes to the Incus event stream so instance changes are reflected in DNS almost immediately (see [Event-Driven Updates](#event-driven-updates)).
 
 It connects either to a **local Unix socket** (agent running on the Incus host) or to a **remote HTTPS endpoint** secured with a client certificate.
 
@@ -25,6 +25,50 @@ flowchart LR
 2. **IP resolver** scans each instance's network interfaces, skipping loopback and non-routable addresses, and selects the first global IPv4 address
 3. **Source** maps the instance name + configured domain suffix to a fully-qualified hostname
 4. **Reconciler** creates or updates A records via the matching DNS provider
+
+A background **event watcher** subscribes to the Incus event stream and triggers
+an out-of-band reconcile whenever an instance changes, so updates do not have to
+wait for the next poll. See [Event-Driven Updates](#event-driven-updates).
+
+## Event-Driven Updates
+
+Alongside the periodic poll, the Incus source runs an event watcher that
+subscribes to the Incus event stream at `/1.0/events` (filtered to `lifecycle`
+events). When an instance is created, started, stopped, or deleted, the watcher
+triggers a reconcile within a short debounce window, giving near-instant DNS
+updates instead of waiting for `DNSWEAVER_RECONCILE_INTERVAL`.
+
+```mermaid
+flowchart LR
+    A["Incus event stream<br/>/1.0/events (lifecycle)"] -->|"instance-started<br/>instance-stopped<br/>..."| B["Event watcher"]
+    B -->|"debounce 2s"| C["Trigger reconcile"]
+    C --> D["Lister re-reads state<br/>/1.0/instances"]
+    D --> E["Reconciler → DNS"]
+```
+
+Design notes:
+
+- **The lister remains the source of truth.** Events only *trigger* a reconcile;
+  the current instance state (and each instance's IP) is always re-read from
+  `/1.0/instances`. The periodic poll stays enabled as a safety net for any
+  missed event.
+- **Bursts coalesce.** A 2-second debounce collapses a burst of events (for
+  example, an `incus-compose up` that starts many instances at once) into a
+  single reconcile.
+- **Resilient connection.** The watcher reconnects with a short backoff if the
+  stream drops, and shuts down cleanly on exit. It reuses the same transport as
+  the lister, so it works over both the local Unix socket and a remote
+  HTTPS + TLS endpoint.
+- **No extra configuration.** The watcher starts automatically whenever the
+  Incus source is active (`DNSWEAVER_INCUS_URL` or
+  `DNSWEAVER_INCUS_SOCKET_PATH` is set).
+
+### Metrics
+
+| Metric | Type | Description |
+| :----- | :--- | :---------- |
+| `dnsweaver_incus_events_processed_total{action}` | counter | Incus events processed, labeled by lifecycle action (e.g. `instance-started`). |
+| `dnsweaver_incus_watcher_reconnects_total` | counter | Number of times the event watcher reconnected after a stream error. |
 
 ## Configuration
 
