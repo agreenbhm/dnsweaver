@@ -231,6 +231,29 @@ var (
 	)
 )
 
+// Incus watcher metrics.
+var (
+	// IncusEventsProcessed counts Incus events processed, labeled by lifecycle
+	// action (e.g. "instance-started") or event type when no action is present.
+	IncusEventsProcessed = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "incus_events_processed_total",
+			Help:      "Total number of Incus events processed.",
+		},
+		[]string{"action"},
+	)
+
+	// IncusWatcherReconnects counts Incus event watcher reconnections.
+	IncusWatcherReconnects = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "incus_watcher_reconnects_total",
+			Help:      "Total number of Incus watcher reconnections.",
+		},
+	)
+)
+
 // SetBuildInfo sets the build info metric with version and go version.
 func SetBuildInfo(version, goVersion string) {
 	BuildInfo.WithLabelValues(version, goVersion).Set(1)

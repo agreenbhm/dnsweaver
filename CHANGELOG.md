@@ -17,6 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   de-prefixed `dnsweaver.hostname` label. The raw `user.label.*` key is always
   retained, and a stripped alias never overwrites an existing label.
   ([GitHub #131](https://github.com/maxfield-allison/dnsweaver/issues/131))
+- **Event-driven Incus source** for near-instant DNS updates. A new watcher
+  subscribes to the Incus event stream (`/1.0/events`, lifecycle events) and
+  triggers reconciliation the moment an instance changes, instead of waiting for
+  the next poll tick. It mirrors the Docker watcher: debounced triggering (bursts
+  such as `incus-compose up` collapse into a single reconcile), automatic
+  reconnect with backoff, and graceful shutdown. The instance lister remains the
+  source of truth and the periodic poll stays as a safety net. Uses the minimal
+  `github.com/coder/websocket` dependency rather than the full Incus SDK.
+  Thanks to [@jochumdev](https://github.com/jochumdev) for the request and
+  guidance. ([GitHub #132](https://github.com/maxfield-allison/dnsweaver/issues/132))
 
 ## [2.5.0] - 2026-07-09
 

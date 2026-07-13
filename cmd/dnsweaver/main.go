@@ -307,8 +307,10 @@ func run() error {
 	}
 
 	// Initialize Incus lister when DNSWEAVER_INCUS_URL or _SOCKET_PATH is set.
+	var incusClient *incusclient.Client
 	if cfg.UseIncus() {
-		incusClient, err := incusclient.NewClient(incusclient.ClientConfig{
+		var err error
+		incusClient, err = incusclient.NewClient(incusclient.ClientConfig{
 			BaseURL:    cfg.IncusURL(),
 			SocketPath: cfg.IncusSocketPath(),
 			Project:    cfg.IncusProject(),
@@ -419,6 +421,14 @@ func run() error {
 		)
 	}
 
+	// Initialize Incus event watcher for near-instant DNS updates (#132)
+	var incusWatcher *incusclient.WorkloadWatcher
+	if incusClient != nil {
+		incusWatcher = incusclient.NewWatcher(incusClient, triggerReconcile,
+			incusclient.WithWatcherLogger(logger),
+		)
+	}
+
 	// Initialize file watcher for sources with file discovery (#22)
 	var fileWatcher *source.FileWatcher
 	if cfg.HasFileDiscovery() {
@@ -497,6 +507,12 @@ func run() error {
 		}
 	}
 
+	if incusWatcher != nil {
+		if err := incusWatcher.Start(ctx); err != nil {
+			return fmt.Errorf("starting incus watcher: %w", err)
+		}
+	}
+
 	if fileWatcher != nil {
 		if err := fileWatcher.Start(ctx); err != nil {
 			return fmt.Errorf("starting file watcher: %w", err)
@@ -569,6 +585,10 @@ func run() error {
 	if k8sWatcher != nil {
 		k8sWatcher.Stop()
 		logger.Debug("kubernetes watcher stopped")
+	}
+	if incusWatcher != nil {
+		incusWatcher.Stop()
+		logger.Debug("incus watcher stopped")
 	}
 	if fileWatcher != nil {
 		fileWatcher.Stop()
