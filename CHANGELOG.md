@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-07-15
+
 ### Added
 - **Incus server certificate pinning** (`DNSWEAVER_INCUS_TLS_PIN_SHA256`). Pin
   the Incus server's leaf certificate to a SHA-256 fingerprint to verify a
@@ -19,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   address works out of the box. The pin is also usable standalone with a
   pre-provisioned certificate for a fully stateless setup. Thanks to
   [@jochumdev](https://github.com/jochumdev) for the report and repro.
-  ([GitHub #146](https://github.com/maxfield-allison/dnsweaver/pull/146))
+  ([GitHub #148](https://github.com/maxfield-allison/dnsweaver/pull/148))
 - **Incus trust-token authentication.** dnsweaver can enroll its own client
   certificate against the Incus API using a one-time trust token instead of a
   pre-provisioned certificate. Set `DNSWEAVER_INCUS_TRUST_TOKEN` and a writable
@@ -78,6 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   optional `DNSWEAVER_PROXMOX_HOSTNAME_TAG_PREFIX` value to derive hostnames from
   tags using `<prefix>+<hostname>` syntax. Explicit FQDN overrides are accepted
   directly, and plain hostnames are combined with `DNSWEAVER_PROXMOX_DOMAIN_SUFFIX` when present.
+  ([GitHub #144](https://github.com/maxfield-allison/dnsweaver/pull/144))
 
 ## [2.5.0] - 2026-07-09
 
@@ -1351,7 +1354,8 @@ release workflow.
 - GitLab CI/CD pipeline with GitHub release automation
 - Docker Hub and GitHub Container Registry publishing
 
-[Unreleased]: https://github.com/maxfield-allison/dnsweaver/compare/v1.1.4...HEAD
+[Unreleased]: https://github.com/maxfield-allison/dnsweaver/compare/v2.6.0...HEAD
+[2.6.0]: https://github.com/maxfield-allison/dnsweaver/compare/v2.5.0...v2.6.0
 [1.1.4]: https://github.com/maxfield-allison/dnsweaver/compare/v1.1.3...v1.1.4
 [1.1.3]: https://github.com/maxfield-allison/dnsweaver/compare/v1.1.2...v1.1.3
 [1.1.2]: https://github.com/maxfield-allison/dnsweaver/compare/v1.1.1...v1.1.2
